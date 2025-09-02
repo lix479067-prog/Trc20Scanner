@@ -198,20 +198,39 @@ export class TronService {
    * Get recent transactions
    */
   async getRecentTransactions(address: string): Promise<TronTransaction[]> {
-    try {
-      // Use TronGrid API to get transactions
-      const response = await fetch(
-        `https://api.trongrid.io/v1/accounts/${address}/transactions?limit=10&order_by=block_timestamp,desc`,
-        {
-          headers: {
-            'TRON-PRO-API-KEY': process.env.TRON_API_KEY || '',
-          },
-        }
-      );
+    let retries = 3;
+    let delay = 500; // Start with 500ms delay
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        // Add delay before each attempt (except first)
+        if (attempt > 1) {
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+        }
+
+        // Use TronGrid API to get transactions
+        const response = await fetch(
+          `https://api.trongrid.io/v1/accounts/${address}/transactions?limit=10&order_by=block_timestamp,desc`,
+          {
+            headers: {
+              'TRON-PRO-API-KEY': process.env.TRON_API_KEY || '',
+            },
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`API Error ${response.status} for ${address}: ${errorText}`);
+          
+          // If rate limited, retry
+          if (response.status === 429 && attempt < retries) {
+            console.log(`Rate limited, retrying in ${delay}ms (attempt ${attempt}/${retries})`);
+            continue;
+          }
+          
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
       const data = await response.json();
       const transactions: TronTransaction[] = [];
@@ -243,11 +262,20 @@ export class TronService {
         }
       }
 
-      return transactions;
-    } catch (error) {
-      console.error('Error getting transactions:', error);
-      return [];
+        return transactions;
+
+      } catch (error) {
+        console.error(`Attempt ${attempt}/${retries} failed for ${address}:`, error);
+        
+        // If this was the last attempt, return empty array
+        if (attempt === retries) {
+          console.error(`FINAL FAILURE: Could not get transactions for ${address} after ${retries} attempts`);
+          return [];
+        }
+      }
     }
+
+    return []; // Should never reach here, but TypeScript safety
   }
 
   /**

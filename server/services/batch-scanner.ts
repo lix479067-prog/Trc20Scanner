@@ -287,9 +287,9 @@ export class BatchScanner {
 
       const checkPromise = (async () => {
         try {
-          // Add delay between requests to avoid rate limiting
+          // Add longer delay between requests to avoid rate limiting
           if (i > 0) {
-            await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+            await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
           }
 
           // Generate address from private key
