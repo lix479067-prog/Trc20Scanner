@@ -196,6 +196,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test route for debugging the complete flow
+  app.post("/api/test-flow", async (req, res) => {
+    try {
+      console.log('\n=== TESTING COMPLETE FLOW ===');
+      
+      // Test 1: Generate random private keys
+      console.log('1. Generating random private keys...');
+      const testPrivateKeys = [];
+      for (let i = 0; i < 3; i++) {
+        const randomHex = Array(64).fill(0).map(() => Math.floor(Math.random() * 16).toString(16)).join('');
+        testPrivateKeys.push(randomHex);
+        console.log(`   Generated: ${randomHex.slice(0, 8)}...${randomHex.slice(-8)}`);
+      }
+      
+      // Test 2: Convert to addresses and query transactions
+      console.log('\n2. Converting to addresses and querying transactions...');
+      const testResults = [];
+      
+      for (const privateKey of testPrivateKeys) {
+        try {
+          // Step 2a: Convert private key to address
+          const address = await tronService.generateAddressFromPrivateKey(privateKey);
+          console.log(`   ${privateKey.slice(0, 8)}... → ${address}`);
+          
+          // Step 2b: Query transactions
+          console.log(`   Querying transactions for ${address}...`);
+          const startTime = Date.now();
+          const transactions = await tronService.getRecentTransactions(address);
+          const queryTime = Date.now() - startTime;
+          console.log(`   Found ${transactions.length} transactions in ${queryTime}ms`);
+          
+          testResults.push({
+            privateKey: privateKey.slice(0, 8) + '...',
+            address,
+            transactionCount: transactions.length,
+            queryTimeMs: queryTime,
+            success: true
+          });
+          
+        } catch (error) {
+          console.error(`   ERROR for ${privateKey.slice(0, 8)}...:`, error.message);
+          testResults.push({
+            privateKey: privateKey.slice(0, 8) + '...',
+            address: 'FAILED',
+            transactionCount: 0,
+            queryTimeMs: 0,
+            success: false,
+            error: error.message
+          });
+        }
+        
+        // Add delay between tests to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      console.log('\n=== TEST RESULTS ===');
+      console.log(JSON.stringify(testResults, null, 2));
+      
+      const successCount = testResults.filter(r => r.success).length;
+      const avgQueryTime = testResults.filter(r => r.success).reduce((sum, r) => sum + r.queryTimeMs, 0) / successCount || 0;
+      
+      res.json({
+        success: true,
+        message: 'Flow test completed',
+        summary: {
+          totalTests: testResults.length,
+          successful: successCount,
+          failed: testResults.length - successCount,
+          averageQueryTime: Math.round(avgQueryTime)
+        },
+        results: testResults
+      });
+      
+    } catch (error) {
+      console.error('Test flow error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
