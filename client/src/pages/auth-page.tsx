@@ -34,10 +34,7 @@ export default function AuthPage() {
   // Register form state
   const [registerForm, setRegisterForm] = useState({
     username: "",
-    email: "",
     password: "",
-    firstName: "",
-    lastName: "",
   });
 
   // Login mutation
@@ -49,15 +46,15 @@ export default function AuthPage() {
     onSuccess: (user: AuthResponse) => {
       queryClient.setQueryData(["/api/user"], user);
       toast({
-        title: "Login successful!",
-        description: `Welcome back, ${user.username}!`,
+        title: "登录成功！",
+        description: `欢迎回来，${user.username}！`,
       });
       // Redirect to home
       window.location.href = "/";
     },
     onError: (error: Error) => {
       toast({
-        title: "Login failed",
+        title: "登录失败",
         description: error.message,
         variant: "destructive",
       });
@@ -73,15 +70,15 @@ export default function AuthPage() {
     onSuccess: (user: AuthResponse) => {
       queryClient.setQueryData(["/api/user"], user);
       toast({
-        title: "Registration successful!",
-        description: `Welcome, ${user.username}! Your account has been created.`,
+        title: "注册成功！",
+        description: `欢迎，${user.username}！您的账户已创建。`,
       });
       // Redirect to home
       window.location.href = "/";
     },
     onError: (error: Error) => {
       toast({
-        title: "Registration failed",
+        title: "注册失败",
         description: error.message,
         variant: "destructive",
       });
@@ -105,16 +102,16 @@ export default function AuthPage() {
     e.preventDefault();
     if (!registerForm.username || !registerForm.password) {
       toast({
-        title: "Validation error",
-        description: "Username and password are required",
+        title: "请填写完整信息",
+        description: "用户名和密码都是必填项",
         variant: "destructive",
       });
       return;
     }
     if (registerForm.password.length < 6) {
       toast({
-        title: "Validation error",
-        description: "Password must be at least 6 characters long",
+        title: "密码太短",
+        description: "密码至少需要6个字符",
         variant: "destructive",
       });
       return;
@@ -138,7 +135,7 @@ export default function AuthPage() {
                 </h1>
               </div>
               <p className="text-muted-foreground">
-                Access your personal TRC20 wallet scanner dashboard
+                访问您的个人TRC20钱包扫描仪控制台
               </p>
             </div>
 
@@ -146,29 +143,30 @@ export default function AuthPage() {
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="login" className="flex items-center gap-2" data-testid="tab-login">
                   <LogIn size={16} />
-                  Login
+                  登录
                 </TabsTrigger>
                 <TabsTrigger value="register" className="flex items-center gap-2" data-testid="tab-register">
                   <UserPlus size={16} />
-                  Register
+                  注册
                 </TabsTrigger>
               </TabsList>
 
               <TabsContent value="login">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Welcome back</CardTitle>
+                    <CardTitle>欢迎回来</CardTitle>
                     <CardDescription>
-                      Sign in to your account to continue scanning
+                      登录您的账户继续扫描
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <form onSubmit={handleLogin} className="space-y-4">
                       <div className="space-y-2">
-                        <Label htmlFor="login-username">Username</Label>
+                        <Label htmlFor="login-username">用户名</Label>
                         <Input
                           id="login-username"
                           type="text"
+                          placeholder="输入用户名"
                           value={loginForm.username}
                           onChange={(e) => setLoginForm(prev => ({ ...prev, username: e.target.value }))}
                           data-testid="input-login-username"
@@ -176,11 +174,12 @@ export default function AuthPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="login-password">Password</Label>
+                        <Label htmlFor="login-password">密码</Label>
                         <div className="relative">
                           <Input
                             id="login-password"
                             type={showPassword ? "text" : "password"}
+                            placeholder="输入密码"
                             value={loginForm.password}
                             onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
                             data-testid="input-login-password"
@@ -203,7 +202,7 @@ export default function AuthPage() {
                         disabled={loginMutation.isPending}
                         data-testid="button-login"
                       >
-                        {loginMutation.isPending ? "Signing in..." : "Sign In"}
+                        {loginMutation.isPending ? "登录中..." : "登录"}
                       </Button>
                     </form>
                   </CardContent>
@@ -213,42 +212,32 @@ export default function AuthPage() {
               <TabsContent value="register">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Create account</CardTitle>
+                    <CardTitle>创建账户</CardTitle>
                     <CardDescription>
-                      Create a new account to start scanning for TRON wallets
+                      创建新账户开始扫描TRON钱包
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
                     <form onSubmit={handleRegister} className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="register-username">Username *</Label>
-                          <Input
-                            id="register-username"
-                            type="text"
-                            value={registerForm.username}
-                            onChange={(e) => setRegisterForm(prev => ({ ...prev, username: e.target.value }))}
-                            data-testid="input-register-username"
-                            required
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="register-email">Email</Label>
-                          <Input
-                            id="register-email"
-                            type="email"
-                            value={registerForm.email}
-                            onChange={(e) => setRegisterForm(prev => ({ ...prev, email: e.target.value }))}
-                            data-testid="input-register-email"
-                          />
-                        </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="register-username">用户名 *</Label>
+                        <Input
+                          id="register-username"
+                          type="text"
+                          placeholder="输入用户名"
+                          value={registerForm.username}
+                          onChange={(e) => setRegisterForm(prev => ({ ...prev, username: e.target.value }))}
+                          data-testid="input-register-username"
+                          required
+                        />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="register-password">Password *</Label>
+                        <Label htmlFor="register-password">密码 *</Label>
                         <div className="relative">
                           <Input
                             id="register-password"
                             type={showPassword ? "text" : "password"}
+                            placeholder="至少6个字符"
                             value={registerForm.password}
                             onChange={(e) => setRegisterForm(prev => ({ ...prev, password: e.target.value }))}
                             data-testid="input-register-password"
@@ -266,35 +255,13 @@ export default function AuthPage() {
                           </Button>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="register-firstname">First Name</Label>
-                          <Input
-                            id="register-firstname"
-                            type="text"
-                            value={registerForm.firstName}
-                            onChange={(e) => setRegisterForm(prev => ({ ...prev, firstName: e.target.value }))}
-                            data-testid="input-register-firstname"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="register-lastname">Last Name</Label>
-                          <Input
-                            id="register-lastname"
-                            type="text"
-                            value={registerForm.lastName}
-                            onChange={(e) => setRegisterForm(prev => ({ ...prev, lastName: e.target.value }))}
-                            data-testid="input-register-lastname"
-                          />
-                        </div>
-                      </div>
                       <Button
                         type="submit"
                         className="w-full"
                         disabled={registerMutation.isPending}
                         data-testid="button-register"
                       >
-                        {registerMutation.isPending ? "Creating Account..." : "Create Account"}
+                        {registerMutation.isPending ? "创建账户中..." : "创建账户"}
                       </Button>
                     </form>
                   </CardContent>

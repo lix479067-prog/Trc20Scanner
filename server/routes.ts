@@ -68,20 +68,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
         
-        // Convert to legacy format for compatibility
+        // Get user ID if authenticated (optional)
+        let userId: string | undefined;
+        if (req.isAuthenticated && req.isAuthenticated() && req.user?.id) {
+          userId = req.user.id;
+        }
+        
+        // Convert to legacy format for compatibility with user ID
         const template = {
           template: scanParams.template,
           maxVariations: scanParams.maxVariations,
           parallelThreads: scanParams.parallelThreads,
+          userId: userId, // Associate scan with user
         };
         
         const result = await batchScanner.startBatchScan(template);
         res.json(result);
       } else {
-        // Pure random scanning
+        // Get user ID if authenticated (optional)
+        let userId: string | undefined;
+        if (req.isAuthenticated && req.isAuthenticated() && req.user?.id) {
+          userId = req.user.id;
+        }
+        
+        // Pure random scanning with user association
         const result = await batchScanner.startRandomScan({
           maxVariations: scanParams.maxVariations,
           parallelThreads: scanParams.parallelThreads,
+          userId: userId, // Associate scan with user
         });
         res.json(result);
       }
@@ -147,17 +161,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get discovered wallets (user-specific when authenticated)
-  app.get("/api/wallets", async (req: any, res) => {
+  // Get user's wallet records (requires authentication)
+  app.get("/api/wallets", requireAuth, async (req: any, res) => {
     try {
       const limit = parseInt(req.query.limit as string) || 50;
       const offset = parseInt(req.query.offset as string) || 0;
       
-      // Get user ID if authenticated (optional)
-      let userId: string | undefined;
-      if (req.isAuthenticated && req.isAuthenticated() && req.user?.id) {
-        userId = req.user.id;
-      }
-      
+      // Get wallets for the authenticated user only
+      const userId = req.user.id;
       const wallets = await storage.getAllWalletRecords(limit, offset, userId);
       res.json(wallets);
     } catch (error: any) {

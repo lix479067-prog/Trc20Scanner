@@ -104,10 +104,11 @@ export class BatchScanner {
   /**
    * Start a new random scan session (no template)
    */
-  async startRandomScan(params: { maxVariations: number; parallelThreads: number }): Promise<BatchScanResult> {
-    // Create scan session in database
+  async startRandomScan(params: { maxVariations: number; parallelThreads: number; userId?: string }): Promise<BatchScanResult> {
+    // Create scan session in database with user association
     const session = await storage.createScanSession({
       template: 'RANDOM_SCAN',
+      userId: params.userId, // Associate session with user
     });
 
     // Initialize progress tracking
@@ -138,16 +139,17 @@ export class BatchScanner {
    * Start a new batch scan session with template
    * For large-scale scanning, use sequential mode for 100% reliability
    */
-  async startBatchScan(template: PrivateKeyTemplate): Promise<BatchScanResult> {
+  async startBatchScan(template: PrivateKeyTemplate & { userId?: string }): Promise<BatchScanResult> {
     // Validate template
     const validation = privateKeyGenerator.validateTemplate(template.template);
     if (!validation.isValid) {
       throw new Error(validation.error || 'Invalid template');
     }
 
-    // Create scan session in database
+    // Create scan session in database with user association
     const session = await storage.createScanSession({
       template: template.template,
+      userId: template.userId, // Associate session with user
     });
 
     // Initialize progress tracking
@@ -491,8 +493,13 @@ export class BatchScanner {
               address: address,
               trxBalance: "0", // We don't query balance anymore
               trxBalanceUsd: "0",
-              tokensCount: 0,
-              totalBalanceUsd: "0",
+              tokenCount: 0,
+              transactionCount: transactions.length,
+              hasActivity: transactions.length > 0,
+              scannedAt: new Date(),
+              lastCheckedAt: new Date(),
+              isActive: true,
+              userId: session.userId, // Associate with the user who started the scan
             });
             console.log(`✅ Saved new active wallet: ${address} (${transactions.length} transactions)`);
           } catch (error) {
