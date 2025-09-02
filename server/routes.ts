@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { tronService } from "./services/tron";
 import { batchScanner } from "./services/batch-scanner";
 import { privateKeyGenerator } from "./services/private-key-generator";
-import { privateKeySchema, privateKeyTemplateSchema } from "@shared/schema";
+import { privateKeySchema, privateKeyTemplateSchema, randomScanSchema } from "@shared/schema";
 import type { WalletInfo } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -50,26 +50,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Start batch scan with template
+  // Start batch scan with template or random
   app.post("/api/scan/start", async (req, res) => {
     try {
-      const template = privateKeyTemplateSchema.parse(req.body);
+      const scanParams = randomScanSchema.parse(req.body);
       
-      // Validate template
-      const validation = privateKeyGenerator.validateTemplate(template.template);
-      if (!validation.isValid) {
-        return res.status(400).json({
-          message: validation.error || "Invalid template",
-          wildcardCount: validation.wildcardCount,
+      if (scanParams.scanMode === 'template' && scanParams.template) {
+        // Validate template
+        const validation = privateKeyGenerator.validateTemplate(scanParams.template);
+        if (!validation.isValid) {
+          return res.status(400).json({
+            message: validation.error || "Invalid template",
+            wildcardCount: validation.wildcardCount,
+          });
+        }
+        
+        // Convert to legacy format for compatibility
+        const template = {
+          template: scanParams.template,
+          maxVariations: scanParams.maxVariations,
+          parallelThreads: scanParams.parallelThreads,
+        };
+        
+        const result = await batchScanner.startBatchScan(template);
+        res.json(result);
+      } else {
+        // Pure random scanning
+        const result = await batchScanner.startRandomScan({
+          maxVariations: scanParams.maxVariations,
+          parallelThreads: scanParams.parallelThreads,
         });
+        res.json(result);
       }
-
-      const result = await batchScanner.startBatchScan(template);
-      res.json(result);
     } catch (error: any) {
-      console.error("Error starting batch scan:", error);
+      console.error("Error starting scan:", error);
       res.status(400).json({
-        message: error.message || "Failed to start batch scan"
+        message: error.message || "Failed to start scan"
       });
     }
   });

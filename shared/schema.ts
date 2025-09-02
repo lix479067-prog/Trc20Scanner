@@ -41,6 +41,13 @@ export const privateKeyTemplateSchema = z.object({
   parallelThreads: z.number().min(1).max(10).default(5),
 });
 
+export const randomScanSchema = z.object({
+  maxVariations: z.number().min(1).max(50000).default(5000),
+  parallelThreads: z.number().min(1).max(10).default(5),
+  scanMode: z.enum(['random', 'template']).default('random'),
+  template: z.string().optional(),
+});
+
 export const walletInfoSchema = z.object({
   address: z.string(),
   trxBalance: z.number(),

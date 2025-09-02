@@ -160,6 +160,30 @@ const translations: Translations = {
     en: "Single Import",
     zh: "单个导入",
   },
+  randomScan: {
+    en: "Random Scan",
+    zh: "随机扫描",
+  },
+  templateScan: {
+    en: "Template Scan",
+    zh: "模板扫描",
+  },
+  quickRandomScan: {
+    en: "Quick Random Scan",
+    zh: "快速随机扫描",
+  },
+  randomScanDescription: {
+    en: "Generate completely random private keys for high-speed scanning without templates",
+    zh: "完全随机生成私钥进行高速扫描，无需模板",
+  },
+  startRandomScan: {
+    en: "Start Random Scan",
+    zh: "开始随机扫描",
+  },
+  scanning: {
+    en: "Scanning...",
+    zh: "扫描中...",
+  },
   templateInput: {
     en: "Private Key Template",
     zh: "私钥模板",

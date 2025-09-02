@@ -27,9 +27,42 @@ interface ScanProgress {
 export class BatchScanner {
   private activeSessions = new Map<number, ScanProgress>();
   private readonly MIN_BALANCE_THRESHOLD = 0.001; // Minimum balance to save wallet
+  private readonly MIN_ACTIVITY_THRESHOLD = 1; // Minimum transaction count for active wallet
 
   /**
-   * Start a new batch scan session
+   * Start a new random scan session (no template)
+   */
+  async startRandomScan(params: { maxVariations: number; parallelThreads: number }): Promise<BatchScanResult> {
+    // Create scan session in database
+    const session = await storage.createScanSession({
+      template: 'RANDOM_SCAN',
+    });
+
+    // Initialize progress tracking
+    const progress: ScanProgress = {
+      sessionId: session.id,
+      template: 'RANDOM_SCAN',
+      totalGenerated: 0,
+      totalScanned: 0,
+      totalFound: 0,
+      foundWallets: [],
+      isCompleted: false,
+      isRunning: true,
+    };
+
+    this.activeSessions.set(session.id, progress);
+
+    // Start random scanning asynchronously
+    this.performRandomScan(session.id, params).catch((error) => {
+      console.error(`Random scan ${session.id} failed:`, error);
+      this.markSessionCompleted(session.id);
+    });
+
+    return this.getProgressResult(progress);
+  }
+
+  /**
+   * Start a new batch scan session with template
    */
   async startBatchScan(template: PrivateKeyTemplate): Promise<BatchScanResult> {
     // Validate template
@@ -120,14 +153,75 @@ export class BatchScanner {
   }
 
   /**
-   * Perform the actual batch scanning
+   * Perform pure random scanning
+   */
+  private async performRandomScan(sessionId: number, params: { maxVariations: number; parallelThreads: number }): Promise<void> {
+    const progress = this.activeSessions.get(sessionId);
+    if (!progress) return;
+
+    const batchSize = 40; // Larger batches for random scanning
+    const maxConcurrent = Math.min(params.parallelThreads, 8);
+
+    try {
+      const keyBatches = privateKeyGenerator.generateRandomStream(batchSize);
+      const semaphore = new Semaphore(maxConcurrent);
+      const promises: Promise<void>[] = [];
+      let totalGenerated = 0;
+
+      // Use iterator manually
+      let batchResult = keyBatches.next();
+      while (!batchResult.done && progress.isRunning && totalGenerated < params.maxVariations) {
+        const batch = batchResult.value;
+        const actualBatchSize = Math.min(batch.length, params.maxVariations - totalGenerated);
+        const trimmedBatch = batch.slice(0, actualBatchSize);
+        
+        progress.totalGenerated += trimmedBatch.length;
+        totalGenerated += trimmedBatch.length;
+
+        // Process batch with concurrency control
+        const batchPromise = semaphore.acquire().then(async (release) => {
+          try {
+            await this.processBatch(sessionId, trimmedBatch);
+          } finally {
+            release();
+          }
+        });
+
+        promises.push(batchPromise);
+
+        // Update session progress
+        if (promises.length % 5 === 0) {
+          await storage.updateScanSession(sessionId, {
+            totalGenerated: progress.totalGenerated,
+          });
+        }
+
+        if (totalGenerated >= params.maxVariations) {
+          break;
+        }
+
+        batchResult = keyBatches.next();
+      }
+
+      // Wait for all batches to complete
+      await Promise.all(promises);
+
+    } catch (error) {
+      console.error(`Error in random scan ${sessionId}:`, error);
+    } finally {
+      await this.markSessionCompleted(sessionId);
+    }
+  }
+
+  /**
+   * Perform the actual batch scanning with template
    */
   private async performBatchScan(sessionId: number, template: PrivateKeyTemplate): Promise<void> {
     const progress = this.activeSessions.get(sessionId);
     if (!progress) return;
 
-    const batchSize = 20; // Process 20 keys per batch
-    const maxConcurrent = Math.min(template.parallelThreads, 5); // Limit concurrent operations
+    const batchSize = 30; // Process 30 keys per batch for better efficiency  
+    const maxConcurrent = Math.min(template.parallelThreads, 8); // Allow more concurrent operations
 
     try {
       // Generate private keys in batches
@@ -196,11 +290,13 @@ export class BatchScanner {
         
         progress.totalScanned++;
 
-        // Check if wallet has significant balance
+        // Check if wallet is truly active (has balance OR transaction history)
         const totalBalanceUsd = walletInfo.trxBalanceUsd + 
           walletInfo.tokens.reduce((sum, token) => sum + token.balanceUsd, 0);
+        const hasTransactions = walletInfo.transactions.length >= this.MIN_ACTIVITY_THRESHOLD;
+        const hasSignificantBalance = totalBalanceUsd >= this.MIN_BALANCE_THRESHOLD;
 
-        if (totalBalanceUsd >= this.MIN_BALANCE_THRESHOLD) {
+        if (hasSignificantBalance || hasTransactions) {
           // Save wallet to database
           await storage.saveWalletRecord({
             privateKey,

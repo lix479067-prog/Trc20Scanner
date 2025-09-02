@@ -5,6 +5,12 @@ import { ScanProgress } from "./scan-progress";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLanguage } from "@/hooks/use-language";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Shuffle, Search, Zap } from "lucide-react";
 import type { BatchScanResult } from "@shared/schema";
 
 export function BatchScanner() {
@@ -12,10 +18,17 @@ export function BatchScanner() {
   const { toast } = useToast();
   const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
 
-  // Start batch scan mutation
+  const [scanMode, setScanMode] = useState<'template' | 'random'>('random');
+  const [randomScanParams, setRandomScanParams] = useState({
+    maxVariations: 5000,
+    parallelThreads: 5,
+  });
+
+  // Start scan mutation (template or random)
   const startScanMutation = useMutation({
     mutationFn: async (params: {
-      template: string;
+      scanMode: 'template' | 'random';
+      template?: string;
       maxVariations: number;
       parallelThreads: number;
     }) => {
@@ -81,9 +94,18 @@ export function BatchScanner() {
 
   const handleStartScan = (template: string, maxVariations: number, parallelThreads: number) => {
     startScanMutation.mutate({
+      scanMode: 'template',
       template,
       maxVariations,
       parallelThreads,
+    });
+  };
+
+  const handleStartRandomScan = () => {
+    startScanMutation.mutate({
+      scanMode: 'random',
+      maxVariations: randomScanParams.maxVariations,
+      parallelThreads: randomScanParams.parallelThreads,
     });
   };
 
@@ -102,12 +124,78 @@ export function BatchScanner() {
     stopScanMutation.isPending;
 
   return (
-    <div>
-      {/* Template Input */}
-      <TemplateInput
-        onStartScan={handleStartScan}
-        isScanning={isScanning}
-      />
+    <div className="space-y-6">
+      <Tabs value={scanMode} onValueChange={(value) => setScanMode(value as 'template' | 'random')} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="random" className="flex items-center gap-2" data-testid="tab-random-scan">
+            <Shuffle size={16} />
+            {t("randomScan")}
+          </TabsTrigger>
+          <TabsTrigger value="template" className="flex items-center gap-2" data-testid="tab-template-scan">
+            <Search size={16} />
+            {t("templateScan")}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="random" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="text-yellow-500" size={20} />
+                {t("quickRandomScan")}
+              </CardTitle>
+              <CardDescription>
+                {t("randomScanDescription")}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="maxVariations">{t("maxVariations")}</Label>
+                  <Input
+                    id="maxVariations"
+                    type="number"
+                    min="100"
+                    max="50000"
+                    value={randomScanParams.maxVariations}
+                    onChange={(e) => setRandomScanParams(prev => ({ ...prev, maxVariations: parseInt(e.target.value) || 5000 }))}
+                    data-testid="input-max-variations"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="parallelThreads">{t("parallelThreads")}</Label>
+                  <Input
+                    id="parallelThreads"
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={randomScanParams.parallelThreads}
+                    onChange={(e) => setRandomScanParams(prev => ({ ...prev, parallelThreads: parseInt(e.target.value) || 5 }))}
+                    data-testid="input-parallel-threads"
+                  />
+                </div>
+              </div>
+              <Button
+                onClick={handleStartRandomScan}
+                disabled={isScanning}
+                className="w-full"
+                size="lg"
+                data-testid="button-start-random-scan"
+              >
+                <Shuffle className="mr-2" size={16} />
+                {isScanning ? t("scanning") : t("startRandomScan")}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="template">
+          <TemplateInput
+            onStartScan={handleStartScan}
+            isScanning={isScanning}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Scan Progress */}
       {scanProgress && (

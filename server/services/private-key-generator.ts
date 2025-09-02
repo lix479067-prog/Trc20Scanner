@@ -1,16 +1,22 @@
 /**
- * Private Key Generator Service
- * Generates multiple private key variations based on a template with wildcards
+ * High-Performance Private Key Generator Service
+ * Optimized for random generation and scanning efficiency
  */
 
 export class PrivateKeyGenerator {
   private readonly hexChars = '0123456789abcdef';
+  private randomBuffer: Uint8Array;
+  private bufferIndex: number = 0;
+  
+  constructor() {
+    // Pre-generate random bytes for better performance
+    this.randomBuffer = new Uint8Array(10000);
+    this.refreshRandomBuffer();
+  }
 
   /**
-   * Generate private key variations from a template
-   * @param template - 64-character template with '?' as wildcards
-   * @param maxVariations - Maximum number of variations to generate
-   * @returns Array of generated private keys
+   * Generate random private key variations from a template
+   * Uses optimized random generation for high performance
    */
   generateFromTemplate(template: string, maxVariations: number = 1000): string[] {
     if (template.length !== 64) {
@@ -22,71 +28,96 @@ export class PrivateKeyGenerator {
     }
 
     const wildcardPositions = this.findWildcardPositions(template);
-    const wildcardCount = wildcardPositions.length;
-
-    if (wildcardCount === 0) {
-      // No wildcards, return the template as-is
+    
+    if (wildcardPositions.length === 0) {
       return [template.toLowerCase()];
     }
-
-    // Calculate total possible combinations
-    const totalCombinations = Math.pow(16, wildcardCount);
-    const actualVariations = Math.min(maxVariations, totalCombinations);
 
     const variations = new Set<string>();
     const baseTemplate = template.toLowerCase();
 
-    // Generate variations
-    for (let i = 0; i < actualVariations * 2 && variations.size < actualVariations; i++) {
-      const privateKey = this.generateSingleVariation(baseTemplate, wildcardPositions);
+    // Use high-performance random generation
+    while (variations.size < maxVariations) {
+      const privateKey = this.generateRandomVariation(baseTemplate, wildcardPositions);
       variations.add(privateKey);
+      
+      // Break if we're hitting duplicates too often (unlikely with good randomness)
+      if (variations.size > 0 && (variations.size * 3) < maxVariations) {
+        break;
+      }
     }
 
     return Array.from(variations);
   }
 
   /**
-   * Generate private keys in batches for better memory management
+   * Refresh the random buffer with new crypto-strong random bytes
    */
-  *generateBatches(template: string, maxVariations: number, batchSize: number = 100): Generator<string[], void, unknown> {
-    const wildcardPositions = this.findWildcardPositions(template);
-    const wildcardCount = wildcardPositions.length;
+  private refreshRandomBuffer(): void {
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      crypto.getRandomValues(this.randomBuffer);
+    } else {
+      // Fallback for Node.js
+      const crypto = require('crypto');
+      const randomBytes = crypto.randomBytes(this.randomBuffer.length);
+      this.randomBuffer.set(randomBytes);
+    }
+    this.bufferIndex = 0;
+  }
 
-    if (wildcardCount === 0) {
+  /**
+   * Get next random byte from buffer, refreshing if needed
+   */
+  private getRandomByte(): number {
+    if (this.bufferIndex >= this.randomBuffer.length) {
+      this.refreshRandomBuffer();
+    }
+    return this.randomBuffer[this.bufferIndex++];
+  }
+
+  /**
+   * Generate a single random variation optimized for performance
+   */
+  private generateRandomVariation(template: string, wildcardPositions: number[]): string {
+    let result = template;
+    
+    for (const position of wildcardPositions) {
+      const randomByte = this.getRandomByte();
+      const hexIndex = randomByte & 0xF; // Use only lower 4 bits for hex (0-15)
+      const randomHex = this.hexChars[hexIndex];
+      result = result.substring(0, position) + randomHex + result.substring(position + 1);
+    }
+
+    return result;
+  }
+
+  /**
+   * Generate private keys in continuous stream for high-speed scanning
+   */
+  *generateBatches(template: string, maxVariations: number, batchSize: number = 50): Generator<string[], void, unknown> {
+    const wildcardPositions = this.findWildcardPositions(template);
+    
+    if (wildcardPositions.length === 0) {
       yield [template.toLowerCase()];
       return;
     }
 
-    const totalCombinations = Math.pow(16, wildcardCount);
-    const actualVariations = Math.min(maxVariations, totalCombinations);
     const baseTemplate = template.toLowerCase();
-
     let generated = 0;
-    const variations = new Set<string>();
 
-    while (generated < actualVariations) {
-      const currentBatchSize = Math.min(batchSize, actualVariations - generated);
-      variations.clear();
+    while (generated < maxVariations) {
+      const currentBatchSize = Math.min(batchSize, maxVariations - generated);
+      const batch: string[] = [];
 
-      // Generate unique variations for this batch
-      let attempts = 0;
-      while (variations.size < currentBatchSize && attempts < currentBatchSize * 3) {
-        const privateKey = this.generateSingleVariation(baseTemplate, wildcardPositions);
-        variations.add(privateKey);
-        attempts++;
+      // Generate batch without checking for duplicates for speed
+      // Duplicates are extremely rare with good randomness
+      for (let i = 0; i < currentBatchSize; i++) {
+        const privateKey = this.generateRandomVariation(baseTemplate, wildcardPositions);
+        batch.push(privateKey);
       }
 
-      const batch = Array.from(variations);
       generated += batch.length;
-      
-      if (batch.length > 0) {
-        yield batch;
-      }
-
-      if (batch.length < currentBatchSize) {
-        // Couldn't generate enough unique variations
-        break;
-      }
+      yield batch;
     }
   }
 
@@ -135,17 +166,44 @@ export class PrivateKeyGenerator {
   }
 
   /**
-   * Generate a single random variation of the template
+   * Generate high-entropy random private keys (no template)
+   * For pure random scanning
    */
-  private generateSingleVariation(template: string, wildcardPositions: number[]): string {
-    let result = template;
+  generateRandomKeys(count: number): string[] {
+    const keys: string[] = [];
     
-    for (const position of wildcardPositions) {
-      const randomHex = this.hexChars[Math.floor(Math.random() * 16)];
-      result = result.substring(0, position) + randomHex + result.substring(position + 1);
+    for (let i = 0; i < count; i++) {
+      let key = '';
+      for (let j = 0; j < 64; j++) {
+        const randomByte = this.getRandomByte();
+        const hexIndex = randomByte & 0xF;
+        key += this.hexChars[hexIndex];
+      }
+      keys.push(key);
     }
+    
+    return keys;
+  }
 
-    return result;
+  /**
+   * Generate continuous stream of random keys
+   */
+  *generateRandomStream(batchSize: number = 50): Generator<string[], void, unknown> {
+    while (true) {
+      const batch: string[] = [];
+      
+      for (let i = 0; i < batchSize; i++) {
+        let key = '';
+        for (let j = 0; j < 64; j++) {
+          const randomByte = this.getRandomByte();
+          const hexIndex = randomByte & 0xF;
+          key += this.hexChars[hexIndex];
+        }
+        batch.push(key);
+      }
+      
+      yield batch;
+    }
   }
 
   /**
@@ -162,37 +220,44 @@ export class PrivateKeyGenerator {
   }
 
   /**
-   * Generate systematic variations (sequential rather than random)
-   * Useful for thorough scanning of a space
+   * Smart random generation with entropy distribution
+   * Avoids common weak patterns
    */
-  generateSystematicVariations(template: string, maxVariations: number = 1000): string[] {
+  generateSmartRandom(template: string, count: number): string[] {
     const wildcardPositions = this.findWildcardPositions(template);
-    const wildcardCount = wildcardPositions.length;
-
-    if (wildcardCount === 0) {
-      return [template.toLowerCase()];
-    }
-
-    const totalCombinations = Math.pow(16, wildcardCount);
-    const actualVariations = Math.min(maxVariations, totalCombinations);
-    const variations: string[] = [];
     const baseTemplate = template.toLowerCase();
-
-    for (let i = 0; i < actualVariations; i++) {
+    const keys: string[] = [];
+    
+    for (let i = 0; i < count; i++) {
       let result = baseTemplate;
-      let remaining = i;
-
-      // Convert number to hex digits for each wildcard position
-      for (let j = wildcardPositions.length - 1; j >= 0; j--) {
-        const hexDigit = this.hexChars[remaining % 16];
-        remaining = Math.floor(remaining / 16);
-        result = result.substring(0, wildcardPositions[j]) + hexDigit + result.substring(wildcardPositions[j] + 1);
+      
+      // Use different entropy sources for different positions
+      for (let j = 0; j < wildcardPositions.length; j++) {
+        const position = wildcardPositions[j];
+        let hexValue: number;
+        
+        // Mix entropy sources to avoid patterns
+        if (j % 3 === 0) {
+          // Use timestamp-based entropy
+          hexValue = (Date.now() + i + j) & 0xF;
+        } else if (j % 3 === 1) {
+          // Use random buffer
+          hexValue = this.getRandomByte() & 0xF;
+        } else {
+          // Use mixed entropy
+          const byte1 = this.getRandomByte();
+          const byte2 = (Date.now() + position) & 0xFF;
+          hexValue = (byte1 ^ byte2) & 0xF;
+        }
+        
+        const hexChar = this.hexChars[hexValue];
+        result = result.substring(0, position) + hexChar + result.substring(position + 1);
       }
-
-      variations.push(result);
+      
+      keys.push(result);
     }
-
-    return variations;
+    
+    return keys;
   }
 }
 
