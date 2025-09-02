@@ -378,6 +378,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test generateAll method
+  app.post("/api/test-generate-all", async (req, res) => {
+    try {
+      const { template, targetPrivateKey } = req.body;
+      console.log(`\n=== TESTING GENERATE ALL METHOD ===`);
+      console.log(`Template: ${template}`);
+      console.log(`Target: ${targetPrivateKey}`);
+      
+      // Generate all keys using the new method
+      const allKeys = privateKeyGenerator.generateAll(template, 256);
+      console.log(`Generated ${allKeys.length} keys`);
+      
+      // Check if target key is in the list
+      const foundIndex = allKeys.findIndex(key => key === targetPrivateKey.toLowerCase());
+      const isFound = foundIndex !== -1;
+      
+      console.log(`Target key found: ${isFound} (index: ${foundIndex})`);
+      
+      if (isFound) {
+        console.log(`✅ GENERATEALL WORKS - Target key found at index ${foundIndex}`);
+      } else {
+        console.log(`❌ GENERATEALL PROBLEM - Target key missing from generated list`);
+        console.log(`First 5 keys: ${allKeys.slice(0, 5).join(', ')}`);
+        console.log(`Last 5 keys: ${allKeys.slice(-5).join(', ')}`);
+      }
+      
+      res.json({
+        success: true,
+        template,
+        targetPrivateKey,
+        totalGenerated: allKeys.length,
+        foundInList: isFound,
+        foundAtIndex: foundIndex,
+        firstFiveKeys: allKeys.slice(0, 5),
+        lastFiveKeys: allKeys.slice(-5),
+        conclusion: isFound ? 'generateAll method works correctly' : 'generateAll method has a bug'
+      });
+      
+    } catch (error) {
+      console.error('Test generateAll error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
   // Test user's specific private key
   app.post("/api/test-your-key", async (req, res) => {
     try {
