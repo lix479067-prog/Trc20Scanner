@@ -155,8 +155,7 @@ export function BatchScanner() {
                   <Input
                     id="maxVariations"
                     type="number"
-                    min="100"
-                    max="50000"
+                    min="1"
                     value={randomScanParams.maxVariations}
                     onChange={(e) => setRandomScanParams(prev => ({ ...prev, maxVariations: parseInt(e.target.value) || 5000 }))}
                     data-testid="input-max-variations"

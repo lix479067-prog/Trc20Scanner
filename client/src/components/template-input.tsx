@@ -22,7 +22,7 @@ interface TemplateInputProps {
 export function TemplateInput({ onStartScan, isScanning }: TemplateInputProps) {
   const { t } = useLanguage();
   const [template, setTemplate] = useState("");
-  const [maxVariations, setMaxVariations] = useState(1000);
+  const [maxVariations, setMaxVariations] = useState(5000);
   const [parallelThreads, setParallelThreads] = useState(3);
   const [showTemplate, setShowTemplate] = useState(false);
   const [validation, setValidation] = useState<TemplateValidation | null>(null);
@@ -178,9 +178,8 @@ export function TemplateInput({ onStartScan, isScanning }: TemplateInputProps) {
                 id="maxVariations"
                 type="number"
                 min={1}
-                max={validation.recommendedMaxVariations}
                 value={maxVariations}
-                onChange={(e) => setMaxVariations(parseInt(e.target.value) || 1000)}
+                onChange={(e) => setMaxVariations(parseInt(e.target.value) || 5000)}
                 className="mt-1"
                 data-testid="input-max-variations"
               />
