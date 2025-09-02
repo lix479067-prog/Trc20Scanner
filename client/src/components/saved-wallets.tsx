@@ -184,8 +184,8 @@ export function SavedWallets() {
                     <div className="flex-1 min-w-0 space-y-2">
                       {/* Address */}
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-sm" data-testid={`address-${index}`}>
-                          {wallet.address.slice(0, 8)}...{wallet.address.slice(-8)}
+                        <span className="font-mono text-sm break-all" data-testid={`address-${index}`}>
+                          {showPrivateKeys ? wallet.address : `${wallet.address.slice(0, 8)}...${wallet.address.slice(-8)}`}
                         </span>
                         <Badge variant="secondary" className="text-xs">
                           Active
@@ -211,8 +211,8 @@ export function SavedWallets() {
                       {/* Private Key */}
                       {showPrivateKeys && (
                         <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-muted-foreground">
-                            {wallet.privateKey.slice(0, 16)}...{wallet.privateKey.slice(-16)}
+                          <span className="font-mono text-xs text-muted-foreground break-all">
+                            {wallet.privateKey}
                           </span>
                           <Button
                             variant="ghost"
