@@ -278,17 +278,27 @@ export class BatchScanner {
     const progress = this.activeSessions.get(sessionId);
     if (!progress || !progress.isRunning) return;
 
-    const concurrentChecks = privateKeys.map(async (privateKey) => {
-      if (!progress.isRunning) return;
+    // Process keys with rate limiting to avoid API throttling
+    const concurrentChecks: Promise<void>[] = [];
+    
+    for (let i = 0; i < privateKeys.length; i++) {
+      const privateKey = privateKeys[i];
+      if (!progress.isRunning) break;
 
-      try {
-        // Generate address from private key
-        const address = await tronService.generateAddressFromPrivateKey(privateKey);
-        
-        // Get wallet info
-        const walletInfo = await this.getWalletInfo(address);
-        
-        progress.totalScanned++;
+      const checkPromise = (async () => {
+        try {
+          // Add delay between requests to avoid rate limiting
+          if (i > 0) {
+            await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+          }
+
+          // Generate address from private key
+          const address = await tronService.generateAddressFromPrivateKey(privateKey);
+          
+          // Get wallet info with retries
+          const walletInfo = await this.getWalletInfoWithRetry(address);
+          
+          progress.totalScanned++;
 
         // Check if wallet is truly active (has balance OR transaction history)
         const totalBalanceUsd = walletInfo.trxBalanceUsd + 
