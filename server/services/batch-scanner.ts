@@ -493,9 +493,8 @@ export class BatchScanner {
               address: address,
               trxBalance: "0", // We don't query balance anymore
               trxBalanceUsd: "0",
-              tokenCount: 0,
-              transactionCount: transactions.length,
-              hasActivity: transactions.length > 0,
+              tokensCount: 0, // 使用正确的字段名
+              totalBalanceUsd: "0",
               scannedAt: new Date(),
               lastCheckedAt: new Date(),
               isActive: true,
