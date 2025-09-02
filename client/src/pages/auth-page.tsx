@@ -48,15 +48,19 @@ export default function AuthPage() {
       toast({
         title: "登录成功！",
         description: `欢迎回来，${user.username}！`,
+        duration: 2000, // 2秒后自动消失
       });
-      // Redirect to home
-      window.location.href = "/";
+      // Redirect to home after a short delay
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1000);
     },
     onError: (error: Error) => {
       toast({
         title: "登录失败",
         description: error.message,
         variant: "destructive",
+        duration: 4000, // 4秒后自动消失
       });
     },
   });
@@ -72,15 +76,19 @@ export default function AuthPage() {
       toast({
         title: "注册成功！",
         description: `欢迎，${user.username}！您的账户已创建。`,
+        duration: 2000, // 2秒后自动消失
       });
-      // Redirect to home
-      window.location.href = "/";
+      // Redirect to home after a short delay
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1000);
     },
     onError: (error: Error) => {
       toast({
         title: "注册失败",
         description: error.message,
         variant: "destructive",
+        duration: 4000, // 4秒后自动消失
       });
     },
   });
@@ -89,9 +97,10 @@ export default function AuthPage() {
     e.preventDefault();
     if (!loginForm.username || !loginForm.password) {
       toast({
-        title: "Validation error",
-        description: "Please fill in all required fields",
+        title: "请填写完整信息",
+        description: "用户名和密码都是必填项",
         variant: "destructive",
+        duration: 3000,
       });
       return;
     }
@@ -105,6 +114,7 @@ export default function AuthPage() {
         title: "请填写完整信息",
         description: "用户名和密码都是必填项",
         variant: "destructive",
+        duration: 3000,
       });
       return;
     }
@@ -113,6 +123,7 @@ export default function AuthPage() {
         title: "密码太短",
         description: "密码至少需要6个字符",
         variant: "destructive",
+        duration: 3000,
       });
       return;
     }
