@@ -295,82 +295,61 @@ export class BatchScanner {
           // Generate address from private key
           const address = await tronService.generateAddressFromPrivateKey(privateKey);
           
-          // Get wallet info with retries
-          const walletInfo = await this.getWalletInfoWithRetry(address);
+          // Only check transaction history for activity
+          const transactions = await tronService.getRecentTransactions(address);
           
           progress.totalScanned++;
 
-        // Check if wallet is truly active (has balance OR transaction history)
-        const totalBalanceUsd = walletInfo.trxBalanceUsd + 
-          walletInfo.tokens.reduce((sum, token) => sum + token.balanceUsd, 0);
-        const hasTransactions = walletInfo.transactions.length >= this.MIN_ACTIVITY_THRESHOLD;
-        const hasSignificantBalance = totalBalanceUsd >= this.MIN_BALANCE_THRESHOLD;
+          // Check if wallet has any transaction history (indicating it's active)
+          const hasTransactions = transactions.length >= this.MIN_ACTIVITY_THRESHOLD;
 
-        if (hasSignificantBalance || hasTransactions) {
-          // Save wallet to database
-          await storage.saveWalletRecord({
-            privateKey,
-            address: walletInfo.address,
-            trxBalance: walletInfo.trxBalance.toString(),
-            trxBalanceUsd: walletInfo.trxBalanceUsd.toString(),
-            tokensCount: walletInfo.tokens.length,
-            totalBalanceUsd: totalBalanceUsd.toString(),
-          });
+          if (hasTransactions) {
+            // Save active wallet to database (minimal data)
+            await storage.saveWalletRecord({
+              privateKey,
+              address: address,
+              trxBalance: "0", // We don't query balance anymore
+              trxBalanceUsd: "0",
+              tokensCount: 0,
+              totalBalanceUsd: "0",
+            });
 
-          // Add to current session results
-          progress.foundWallets.push({
-            address: walletInfo.address,
-            privateKey,
-            trxBalance: walletInfo.trxBalance,
-            totalBalanceUsd,
-          });
+            // Add to current session results
+            progress.foundWallets.push({
+              address: address,
+              privateKey,
+              trxBalance: 0,
+              totalBalanceUsd: 0,
+            });
 
-          progress.totalFound++;
+            progress.totalFound++;
 
-          console.log(`Found wallet with balance: ${address} (${totalBalanceUsd} USD)`);
+            console.log(`Found active wallet: ${address} (${transactions.length} transactions)`);
+          }
+
+        } catch (error) {
+          console.error(`Error checking private key ${privateKey.slice(0, 8)}...`, error);
+          progress.totalScanned++;
         }
+      })();
 
-      } catch (error) {
-        console.error(`Error checking private key ${privateKey.slice(0, 8)}...`, error);
-        progress.totalScanned++;
-      }
-    });
+      concurrentChecks.push(checkPromise);
+    }
 
     await Promise.all(concurrentChecks);
   }
 
   /**
-   * Get wallet info with caching and error handling
+   * Simplified: Only check if address has any transaction history
+   * This reduces API calls from 4-6 to just 1 per address
    */
-  private async getWalletInfo(address: string): Promise<WalletInfo> {
+  private async checkAddressActivity(address: string): Promise<boolean> {
     try {
-      const [trxBalance, resources, tokens, transactions] = await Promise.all([
-        tronService.getTrxBalance(address),
-        tronService.getAccountResources(address),
-        tronService.getTrc20Balances(address),
-        tronService.getRecentTransactions(address),
-      ]);
-
-      return {
-        address,
-        trxBalance: trxBalance.balance,
-        trxBalanceUsd: trxBalance.balanceUsd,
-        energy: resources.energy,
-        bandwidth: resources.bandwidth,
-        tokens,
-        transactions,
-      };
+      const transactions = await tronService.getRecentTransactions(address);
+      return transactions.length >= this.MIN_ACTIVITY_THRESHOLD;
     } catch (error) {
-      // Return empty wallet info if there's an error
-      return {
-        address,
-        trxBalance: 0,
-        trxBalanceUsd: 0,
-        energy: { used: 0, total: 0 },
-        bandwidth: { used: 0, total: 0 },
-        tokens: [],
-        transactions: [],
-      };
+      console.error(`Error checking activity for ${address}:`, error);
+      return false;
     }
   }
 
