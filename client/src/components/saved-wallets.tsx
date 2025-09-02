@@ -76,13 +76,16 @@ export function SavedWallets() {
     window.open(`https://tronscan.org/#/address/${address}`, '_blank');
   };
 
-  const formatBalance = (balance: number) => {
-    if (balance >= 1000000) {
-      return `${(balance / 1000000).toFixed(2)}M`;
-    } else if (balance >= 1000) {
-      return `${(balance / 1000).toFixed(2)}K`;
+  const formatBalance = (balance: number | string) => {
+    const numBalance = typeof balance === 'string' ? parseFloat(balance) : balance;
+    if (isNaN(numBalance)) return "0.000000";
+    
+    if (numBalance >= 1000000) {
+      return `${(numBalance / 1000000).toFixed(2)}M`;
+    } else if (numBalance >= 1000) {
+      return `${(numBalance / 1000).toFixed(2)}K`;
     } else {
-      return balance.toFixed(6);
+      return numBalance.toFixed(6);
     }
   };
 
@@ -228,7 +231,7 @@ export function SavedWallets() {
                           TRX: <span className="text-foreground font-medium">{formatBalance(wallet.trxBalance)}</span>
                         </span>
                         <span className="text-muted-foreground">
-                          Value: <span className="text-green-500 font-medium">${wallet.totalBalanceUsd.toFixed(2)}</span>
+                          Value: <span className="text-green-500 font-medium">${formatBalance(wallet.totalBalanceUsd)}</span>
                         </span>
                         {wallet.tokensCount > 0 && (
                           <span className="text-muted-foreground">
