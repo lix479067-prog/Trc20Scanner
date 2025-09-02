@@ -116,7 +116,7 @@ export class BatchScanner {
     // Initialize progress tracking
     const progress: ScanProgress = {
       sessionId: session.id,
-      userId,
+      userId: params.userId,
       template: 'RANDOM_SCAN',
       totalGenerated: 0,
       totalScanned: 0,
@@ -158,7 +158,7 @@ export class BatchScanner {
     // Initialize progress tracking
     const progress: ScanProgress = {
       sessionId: session.id,
-      userId,
+      userId: template.userId,
       template: template.template,
       totalGenerated: 0,
       totalScanned: 0,

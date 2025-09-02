@@ -179,7 +179,14 @@ export function TemplateInput({ onStartScan, isScanning }: TemplateInputProps) {
                 type="number"
                 min={1}
                 value={maxVariations}
-                onChange={(e) => setMaxVariations(parseInt(e.target.value) || 5000)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '') {
+                    setMaxVariations(0);
+                  } else {
+                    setMaxVariations(parseInt(value) || 0);
+                  }
+                }}
                 className="mt-1"
                 data-testid="input-max-variations"
               />
@@ -226,7 +233,7 @@ export function TemplateInput({ onStartScan, isScanning }: TemplateInputProps) {
         <div className="flex space-x-3">
           <Button
             onClick={handleStartScan}
-            disabled={!validation?.isValid || isScanning}
+            disabled={!validation?.isValid || isScanning || maxVariations <= 0}
             className="flex-1"
             data-testid="button-start-scan"
           >

@@ -54,7 +54,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Start batch scan with template or random
-  app.post("/api/scan/start", async (req, res) => {
+  app.post("/api/scan/start", requireAuth, async (req: any, res) => {
     try {
       const scanParams = randomScanSchema.parse(req.body);
       
@@ -68,11 +68,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
         
-        // Get user ID if authenticated (optional)
-        let userId: string | undefined;
-        if (req.isAuthenticated && req.isAuthenticated() && req.user?.id) {
-          userId = req.user.id;
-        }
+        // Get user ID from authenticated request
+        const userId = req.user.id;
         
         // Convert to legacy format for compatibility with user ID
         const template = {
@@ -85,11 +82,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const result = await batchScanner.startBatchScan(template);
         res.json(result);
       } else {
-        // Get user ID if authenticated (optional)
-        let userId: string | undefined;
-        if (req.isAuthenticated && req.isAuthenticated() && req.user?.id) {
-          userId = req.user.id;
-        }
+        // Get user ID from authenticated request
+        const userId = req.user.id;
         
         // Pure random scanning with user association
         const result = await batchScanner.startRandomScan({

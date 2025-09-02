@@ -157,7 +157,14 @@ export function BatchScanner() {
                     type="number"
                     min="1"
                     value={randomScanParams.maxVariations}
-                    onChange={(e) => setRandomScanParams(prev => ({ ...prev, maxVariations: parseInt(e.target.value) || 5000 }))}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === '') {
+                        setRandomScanParams(prev => ({ ...prev, maxVariations: 0 }));
+                      } else {
+                        setRandomScanParams(prev => ({ ...prev, maxVariations: parseInt(value) || 0 }));
+                      }
+                    }}
                     data-testid="input-max-variations"
                   />
                 </div>
@@ -176,7 +183,7 @@ export function BatchScanner() {
               </div>
               <Button
                 onClick={handleStartRandomScan}
-                disabled={isScanning}
+                disabled={isScanning || randomScanParams.maxVariations <= 0}
                 className="w-full"
                 size="lg"
                 data-testid="button-start-random-scan"
