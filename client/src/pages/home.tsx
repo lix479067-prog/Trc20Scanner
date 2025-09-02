@@ -1,19 +1,24 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Key } from "lucide-react";
+import { Key, Search, Download } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { LanguageToggle } from "@/components/language-toggle";
 import { SecurityNotice } from "@/components/security-notice";
 import { PrivateKeyInput } from "@/components/private-key-input";
 import { LoadingState } from "@/components/loading-state";
 import { WalletInfo } from "@/components/wallet-info";
+import { BatchScanner } from "@/components/batch-scanner";
+import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { WalletInfo as WalletInfoType } from "@shared/schema";
 
+type ViewMode = 'single' | 'batch';
+
 export default function Home() {
   const { t } = useLanguage();
   const { toast } = useToast();
+  const [viewMode, setViewMode] = useState<ViewMode>('single');
   const [walletInfo, setWalletInfo] = useState<WalletInfoType | null>(null);
 
   const importWalletMutation = useMutation({
@@ -91,6 +96,30 @@ export default function Home() {
             </div>
             
             <div className="flex items-center space-x-4">
+              {/* Mode Toggle */}
+              <div className="flex items-center bg-muted rounded-lg p-1">
+                <Button
+                  variant={viewMode === 'single' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('single')}
+                  className="text-sm"
+                  data-testid="button-single-mode"
+                >
+                  <Download size={14} className="mr-1" />
+                  {t("singleImport")}
+                </Button>
+                <Button
+                  variant={viewMode === 'batch' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('batch')}
+                  className="text-sm"
+                  data-testid="button-batch-mode"
+                >
+                  <Search size={14} className="mr-1" />
+                  {t("batchScan")}
+                </Button>
+              </div>
+              
               <LanguageToggle />
               <div className="status-indicator text-sm text-success font-medium" data-testid="network-status">
                 {t("networkConnected")}
@@ -103,20 +132,28 @@ export default function Home() {
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         <SecurityNotice />
 
-        <PrivateKeyInput 
-          onImport={handleImport} 
-          isLoading={importWalletMutation.isPending}
-        />
+        {viewMode === 'single' ? (
+          // Single Private Key Import Mode
+          <>
+            <PrivateKeyInput 
+              onImport={handleImport} 
+              isLoading={importWalletMutation.isPending}
+            />
 
-        {importWalletMutation.isPending && <LoadingState />}
+            {importWalletMutation.isPending && <LoadingState />}
 
-        {walletInfo && (
-          <WalletInfo 
-            walletInfo={walletInfo}
-            onRefresh={handleRefresh}
-            onClear={handleClear}
-            isRefreshing={refreshMutation.isPending}
-          />
+            {walletInfo && (
+              <WalletInfo 
+                walletInfo={walletInfo}
+                onRefresh={handleRefresh}
+                onClear={handleClear}
+                isRefreshing={refreshMutation.isPending}
+              />
+            )}
+          </>
+        ) : (
+          // Batch Scanning Mode
+          <BatchScanner />
         )}
       </main>
 

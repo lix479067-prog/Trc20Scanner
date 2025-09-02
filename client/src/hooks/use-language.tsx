@@ -150,6 +150,128 @@ const translations: Translations = {
     en: "characters",
     zh: "字符",
   },
+  
+  // Batch Scanning
+  batchScan: {
+    en: "Batch Scan",
+    zh: "批量扫描",
+  },
+  singleImport: {
+    en: "Single Import",
+    zh: "单个导入",
+  },
+  templateInput: {
+    en: "Private Key Template",
+    zh: "私钥模板",
+  },
+  templateDescription: {
+    en: "Enter a 64-character template with ? as wildcards for random positions",
+    zh: "输入64位字符模板，使用?作为随机位置的通配符",
+  },
+  templatePlaceholder: {
+    en: "e.g., 1234567890abcdef????????????????1234567890abcdef????????????????",
+    zh: "例如：1234567890abcdef????????????????1234567890abcdef????????????????",
+  },
+  wildcardCount: {
+    en: "Wildcard positions",
+    zh: "通配符位置",
+  },
+  maxVariations: {
+    en: "Max variations to generate",
+    zh: "最大生成变化数",
+  },
+  parallelThreads: {
+    en: "Parallel threads",
+    zh: "并行线程数",
+  },
+  totalCombinations: {
+    en: "Total possible combinations",
+    zh: "总可能组合数",
+  },
+  startScan: {
+    en: "Start Scan",
+    zh: "开始扫描",
+  },
+  stopScan: {
+    en: "Stop Scan",
+    zh: "停止扫描",
+  },
+  scanProgress: {
+    en: "Scan Progress",
+    zh: "扫描进度",
+  },
+  generated: {
+    en: "Generated",
+    zh: "已生成",
+  },
+  scanned: {
+    en: "Scanned",
+    zh: "已扫描",
+  },
+  found: {
+    en: "Found",
+    zh: "已发现",
+  },
+  walletsFound: {
+    en: "Wallets with balance found",
+    zh: "发现有余额的钱包",
+  },
+  noWalletsFound: {
+    en: "No wallets with balance found yet",
+    zh: "暂未发现有余额的钱包",
+  },
+  scanCompleted: {
+    en: "Scan completed",
+    zh: "扫描完成",
+  },
+  scanInProgress: {
+    en: "Scanning in progress...",
+    zh: "扫描进行中...",
+  },
+  sessionId: {
+    en: "Session ID",
+    zh: "会话ID",
+  },
+  discoveredWallets: {
+    en: "Discovered Wallets",
+    zh: "发现的钱包",
+  },
+  statistics: {
+    en: "Statistics",
+    zh: "统计信息",
+  },
+  totalWallets: {
+    en: "Total wallets",
+    zh: "总钱包数",
+  },
+  totalBalance: {
+    en: "Total balance",
+    zh: "总余额",
+  },
+  totalSessions: {
+    en: "Total sessions",
+    zh: "总会话数",
+  },
+  activeSessions: {
+    en: "Active sessions",
+    zh: "活跃会话",
+  },
+  invalidTemplate: {
+    en: "Invalid template format",
+    zh: "模板格式无效",
+  },
+  templateTooManyWildcards: {
+    en: "Too many wildcards (max 20)",
+    zh: "通配符过多（最多20个）",
+  },
+  scanStartedSuccessfully: {
+    en: "Batch scan started successfully",
+    zh: "批量扫描启动成功",
+  },
+  scanStoppedSuccessfully: {
+    en: "Scan stopped successfully",
+    zh: "扫描停止成功",
+  },
 };
 
 interface LanguageContextType {
