@@ -1,17 +1,32 @@
-// Dynamic import for TronWeb (CommonJS module)
+// Dynamic import for TronWeb to handle module issues
 let TronWeb: any;
-let tronWeb: any;
+let tronWebInstance: any;
 
-// Initialize TronWeb asynchronously
+// Initialize TronWeb lazily
 async function initTronWeb() {
-  if (!TronWeb) {
-    TronWeb = (await import('tronweb')).default;
-    tronWeb = new TronWeb({
-      fullHost: 'https://api.trongrid.io',
-      headers: { "TRON-PRO-API-KEY": process.env.TRON_API_KEY || '' },
-    });
+  if (!tronWebInstance) {
+    try {
+      // Try different import methods for TronWeb
+      const tronWebModule = await import('tronweb');
+      TronWeb = tronWebModule.default || (tronWebModule as any).TronWeb || tronWebModule;
+      
+      if (typeof TronWeb !== 'function') {
+        // Fallback: look for TronWeb in the module properties
+        TronWeb = Object.values(tronWebModule).find((value: any) => 
+          typeof value === 'function' && value.name === 'TronWeb'
+        ) || tronWebModule;
+      }
+      
+      tronWebInstance = new TronWeb({
+        fullHost: 'https://api.trongrid.io',
+        headers: { "TRON-PRO-API-KEY": process.env.TRON_API_KEY || '' },
+      });
+    } catch (error) {
+      console.error('Failed to initialize TronWeb:', error);
+      throw new Error('TronWeb initialization failed');
+    }
   }
-  return tronWeb;
+  return tronWebInstance;
 }
 
 export interface TRC20Token {
