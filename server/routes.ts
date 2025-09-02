@@ -4,25 +4,13 @@ import { storage } from "./storage";
 import { tronService } from "./services/tron";
 import { batchScanner } from "./services/batch-scanner";
 import { privateKeyGenerator } from "./services/private-key-generator";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+import { setupAuth, requireAuth } from "./auth";
 import { privateKeySchema, privateKeyTemplateSchema, randomScanSchema } from "@shared/schema";
 import type { WalletInfo } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Setup authentication middleware
-  await setupAuth(app);
-
-  // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      res.json(user);
-    } catch (error) {
-      console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
-    }
-  });
+  setupAuth(app);
   // Import wallet from private key
   app.post("/api/wallet/import", async (req, res) => {
     try {
@@ -166,8 +154,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get user ID if authenticated (optional)
       let userId: string | undefined;
-      if (req.isAuthenticated && req.isAuthenticated() && req.user?.claims?.sub) {
-        userId = req.user.claims.sub;
+      if (req.isAuthenticated && req.isAuthenticated() && req.user?.id) {
+        userId = req.user.id;
       }
       
       const wallets = await storage.getAllWalletRecords(limit, offset, userId);
@@ -185,8 +173,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Get user ID if authenticated (optional)
       let userId: string | undefined;
-      if (req.isAuthenticated && req.isAuthenticated() && req.user?.claims?.sub) {
-        userId = req.user.claims.sub;
+      if (req.isAuthenticated && req.isAuthenticated() && req.user?.id) {
+        userId = req.user.id;
       }
       
       const stats = await storage.getWalletStatistics(userId);

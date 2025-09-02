@@ -15,14 +15,14 @@ export const sessions = pgTable(
   (table) => [index("IDX_session_expire").on(table.expire)],
 );
 
-// User storage table.
-// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
+// User storage table for local authentication
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  email: varchar("email").unique(),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
+  username: varchar("username", { length: 50 }).notNull().unique(),
+  email: varchar("email", { length: 255 }).unique(),
+  password: varchar("password", { length: 255 }).notNull(), // Hashed password
+  firstName: varchar("first_name", { length: 100 }),
+  lastName: varchar("last_name", { length: 100 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -133,9 +133,25 @@ export const insertScanSessionSchema = createInsertSchema(scanSessions).omit({
   completedAt: true,
 });
 
-// User Types for Replit Auth
-export type UpsertUser = typeof users.$inferInsert;
+// User validation schemas
+export const registerSchema = z.object({
+  username: z.string().min(3).max(50),
+  email: z.string().email().optional(),
+  password: z.string().min(6),
+  firstName: z.string().max(100).optional(),
+  lastName: z.string().max(100).optional(),
+});
+
+export const loginSchema = z.object({
+  username: z.string(),
+  password: z.string(),
+});
+
+// User Types
+export type InsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
+export type RegisterInput = z.infer<typeof registerSchema>;
+export type LoginInput = z.infer<typeof loginSchema>;
 
 // Types
 export type PrivateKeyInput = z.infer<typeof privateKeySchema>;

@@ -135,7 +135,10 @@ export default function Home() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => window.location.href = "/api/logout"}
+                onClick={async () => {
+                  await fetch("/api/logout", { method: "POST" });
+                  window.location.reload();
+                }}
                 className="text-sm"
                 data-testid="logout-button"
               >
