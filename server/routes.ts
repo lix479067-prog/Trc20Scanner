@@ -278,6 +278,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test specific address transaction parsing
+  app.post("/api/test-specific-address", async (req, res) => {
+    try {
+      const { address } = req.body;
+      console.log(`\n=== TESTING SPECIFIC ADDRESS: ${address} ===`);
+      
+      // Test our transaction parsing
+      const transactions = await tronService.getRecentTransactions(address);
+      console.log(`Found ${transactions.length} transactions with our parser`);
+      
+      // Show details of parsed transactions
+      console.log('Parsed transactions:', JSON.stringify(transactions, null, 2));
+      
+      res.json({
+        success: true,
+        address,
+        transactionCount: transactions.length,
+        transactions,
+        shouldBeDetectedAsActive: transactions.length > 0
+      });
+      
+    } catch (error) {
+      console.error('Test specific address error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
+  // Test if template covers target address
+  app.post("/api/test-template-coverage", async (req, res) => {
+    try {
+      const { template, targetAddress } = req.body;
+      console.log(`\n=== TESTING TEMPLATE COVERAGE ===`);
+      console.log(`Template: ${template}`);
+      console.log(`Target Address: ${targetAddress}`);
+      
+      // Generate all possible private keys from template
+      const allKeys = [];
+      const validation = privateKeyGenerator.validateTemplate(template);
+      if (!validation.isValid) {
+        throw new Error(`Invalid template: ${validation.error}`);
+      }
+      
+      // Generate all 256 combinations (16x16 for two hex digits)
+      for (let i = 0; i < 16; i++) {
+        for (let j = 0; j < 16; j++) {
+          const hex1 = i.toString(16);
+          const hex2 = j.toString(16);
+          const privateKey = template.replace('??', hex1 + hex2);
+          allKeys.push(privateKey);
+        }
+      }
+      console.log(`Generated ${allKeys.length} private keys from template`);
+      
+      // Test each private key to see if it generates the target address
+      let foundMatch = false;
+      let matchingPrivateKey = '';
+      
+      for (const privateKey of allKeys) {
+        try {
+          const address = await tronService.generateAddressFromPrivateKey(privateKey);
+          if (address === targetAddress) {
+            foundMatch = true;
+            matchingPrivateKey = privateKey;
+            console.log(`✅ FOUND MATCH! Private key: ${privateKey}`);
+            console.log(`✅ Generates address: ${address}`);
+            break;
+          }
+        } catch (error) {
+          console.error(`Error testing private key ${privateKey.slice(0, 8)}...:`, error.message);
+        }
+      }
+      
+      if (!foundMatch) {
+        console.log(`❌ NO MATCH FOUND - Template does not cover target address`);
+      }
+      
+      res.json({
+        success: true,
+        template,
+        targetAddress,
+        totalKeysGenerated: allKeys.length,
+        foundMatch,
+        matchingPrivateKey: foundMatch ? matchingPrivateKey : null,
+        conclusion: foundMatch ? 
+          "Template covers target address - scanning should detect it" : 
+          "Template does NOT cover target address - this explains why scanning failed"
+      });
+      
+    } catch (error) {
+      console.error('Test template coverage error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
