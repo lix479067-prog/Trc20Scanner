@@ -378,6 +378,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test user's specific private key
+  app.post("/api/test-your-key", async (req, res) => {
+    try {
+      const { privateKey } = req.body;
+      console.log(`\n=== TESTING YOUR PRIVATE KEY ===`);
+      console.log(`Private Key: ${privateKey.slice(0, 8)}...${privateKey.slice(-8)}`);
+      
+      // Step 1: Generate address
+      const address = await tronService.generateAddressFromPrivateKey(privateKey);
+      console.log(`Generated Address: ${address}`);
+      
+      // Step 2: Check transactions 
+      const transactions = await tronService.getRecentTransactions(address);
+      console.log(`Found ${transactions.length} transactions`);
+      
+      // Step 3: Apply our scanning logic
+      const hasTransactions = transactions.length >= 1; // MIN_ACTIVITY_THRESHOLD
+      console.log(`Meets activity threshold (≥1): ${hasTransactions}`);
+      
+      // Step 4: Simulate what batch scanner would do
+      if (hasTransactions) {
+        console.log(`✅ WOULD BE SAVED as active wallet`);
+      } else {
+        console.log(`❌ WOULD BE SKIPPED - not active`);
+      }
+      
+      res.json({
+        success: true,
+        privateKey: privateKey.slice(0, 8) + '...',
+        address,
+        transactionCount: transactions.length,
+        meetsThreshold: hasTransactions,
+        shouldBeSaved: hasTransactions,
+        transactions: transactions.slice(0, 3) // Show first 3
+      });
+      
+    } catch (error) {
+      console.error('Test your key error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
   // Health check endpoint
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
