@@ -46,11 +46,18 @@ export const scanSessions = pgTable("scan_sessions", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").references(() => users.id), // Link to user
   template: text("template").notNull(),
+  scanMode: varchar("scan_mode", { length: 20 }).notNull().default('random'), // 'random' or 'template'
+  maxVariations: integer("max_variations").notNull().default(1000),
+  parallelThreads: integer("parallel_threads").notNull().default(5),
+  status: varchar("status", { length: 20 }).notNull().default('pending'), // 'pending', 'running', 'completed', 'failed', 'cancelled'
   totalGenerated: integer("total_generated").notNull().default(0),
+  totalScanned: integer("total_scanned").notNull().default(0),
   totalFound: integer("total_found").notNull().default(0),
+  errorMessage: text("error_message"),
   isActive: boolean("is_active").notNull().default(true),
   startedAt: timestamp("started_at").notNull().defaultNow(),
   completedAt: timestamp("completed_at"),
+  lastProgressAt: timestamp("last_progress_at").notNull().defaultNow(),
 });
 
 // Validation schemas
@@ -161,4 +168,16 @@ export type WalletRecord = typeof walletRecords.$inferSelect;
 export type InsertWalletRecord = z.infer<typeof insertWalletRecordSchema>;
 export type ScanSession = typeof scanSessions.$inferSelect;
 export type InsertScanSession = z.infer<typeof insertScanSessionSchema>;
+export type UpdateScanSession = Partial<Omit<ScanSession, 'id' | 'userId' | 'startedAt'>>;
 export type BatchScanResult = z.infer<typeof batchScanResultSchema>;
+
+// Scan session status enum
+export const ScanSessionStatus = {
+  PENDING: 'pending',
+  RUNNING: 'running', 
+  COMPLETED: 'completed',
+  FAILED: 'failed',
+  CANCELLED: 'cancelled'
+} as const;
+
+export type ScanSessionStatusType = typeof ScanSessionStatus[keyof typeof ScanSessionStatus];

@@ -86,17 +86,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllWalletRecords(limit: number = 50, offset: number = 0, userId?: string): Promise<WalletRecord[]> {
-    let query = db
-      .select()
-      .from(walletRecords)
-      .where(eq(walletRecords.isActive, true));
+    const conditions = [eq(walletRecords.isActive, true)];
     
     // Filter by user if provided
     if (userId) {
-      query = query.where(and(eq(walletRecords.isActive, true), eq(walletRecords.userId, userId)));
+      conditions.push(eq(walletRecords.userId, userId));
     }
     
-    return await query
+    return await db
+      .select()
+      .from(walletRecords)
+      .where(and(...conditions))
       .orderBy(desc(walletRecords.scannedAt))
       .limit(limit)
       .offset(offset);
@@ -135,17 +135,33 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getActiveScanSessions(userId?: string): Promise<ScanSession[]> {
-    let query = db
-      .select()
-      .from(scanSessions)
-      .where(eq(scanSessions.isActive, true));
+    const conditions = [eq(scanSessions.isActive, true)];
     
-    // Filter by user if provided
     if (userId) {
-      query = query.where(and(eq(scanSessions.isActive, true), eq(scanSessions.userId, userId)));
+      conditions.push(eq(scanSessions.userId, userId));
     }
     
-    return await query.orderBy(desc(scanSessions.startedAt));
+    return await db
+      .select()
+      .from(scanSessions)
+      .where(and(...conditions))
+      .orderBy(desc(scanSessions.startedAt));
+  }
+
+  async getAllScanSessions(userId?: string): Promise<ScanSession[]> {
+    const conditions = [];
+    
+    if (userId) {
+      conditions.push(eq(scanSessions.userId, userId));
+    }
+    
+    const baseQuery = db.select().from(scanSessions);
+    
+    if (conditions.length > 0) {
+      return await baseQuery.where(and(...conditions)).orderBy(desc(scanSessions.startedAt));
+    } else {
+      return await baseQuery.orderBy(desc(scanSessions.startedAt));
+    }
   }
 
   async updateScanSession(id: number, updates: Partial<ScanSession>): Promise<ScanSession | undefined> {
@@ -177,20 +193,25 @@ export class DatabaseStorage implements IStorage {
     totalSessions: number;
     activeSessions: number;
   }> {
-    // Build base queries with optional user filtering
-    let walletQuery = db.select().from(walletRecords).where(eq(walletRecords.isActive, true));
-    let sessionQuery = db.select().from(scanSessions);
-    let activeSessionQuery = db.select().from(scanSessions).where(eq(scanSessions.isActive, true));
-    let balanceQuery = db.select({ totalBalanceUsd: walletRecords.totalBalanceUsd })
-      .from(walletRecords).where(eq(walletRecords.isActive, true));
+    // Build wallet conditions
+    const walletConditions = [eq(walletRecords.isActive, true)];
+    const sessionConditions = [];
+    const activeSessionConditions = [eq(scanSessions.isActive, true)];
 
-    // Apply user filter if provided
     if (userId) {
-      walletQuery = walletQuery.where(and(eq(walletRecords.isActive, true), eq(walletRecords.userId, userId)));
-      sessionQuery = sessionQuery.where(eq(scanSessions.userId, userId));
-      activeSessionQuery = activeSessionQuery.where(and(eq(scanSessions.isActive, true), eq(scanSessions.userId, userId)));
-      balanceQuery = balanceQuery.where(and(eq(walletRecords.isActive, true), eq(walletRecords.userId, userId)));
+      walletConditions.push(eq(walletRecords.userId, userId));
+      sessionConditions.push(eq(scanSessions.userId, userId));
+      activeSessionConditions.push(eq(scanSessions.userId, userId));
     }
+
+    // Build queries
+    const walletQuery = db.select().from(walletRecords).where(and(...walletConditions));
+    const sessionQuery = sessionConditions.length > 0 
+      ? db.select().from(scanSessions).where(and(...sessionConditions))
+      : db.select().from(scanSessions);
+    const activeSessionQuery = db.select().from(scanSessions).where(and(...activeSessionConditions));
+    const balanceQuery = db.select({ totalBalanceUsd: walletRecords.totalBalanceUsd })
+      .from(walletRecords).where(and(...walletConditions));
 
     // Execute queries
     const [totalWalletsResult, totalSessionsResult, activeSessionsResult, allWallets] = await Promise.all([

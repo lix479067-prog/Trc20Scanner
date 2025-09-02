@@ -10,6 +10,7 @@ import type { PrivateKeyTemplate, BatchScanResult, WalletInfo } from '@shared/sc
 
 interface ScanProgress {
   sessionId: number;
+  userId: string | null;
   template: string;
   totalGenerated: number;
   totalScanned: number;
@@ -114,6 +115,7 @@ export class BatchScanner {
     // Initialize progress tracking
     const progress: ScanProgress = {
       sessionId: session.id,
+      userId,
       template: 'RANDOM_SCAN',
       totalGenerated: 0,
       totalScanned: 0,
@@ -155,6 +157,7 @@ export class BatchScanner {
     // Initialize progress tracking
     const progress: ScanProgress = {
       sessionId: session.id,
+      userId,
       template: template.template,
       totalGenerated: 0,
       totalScanned: 0,
@@ -351,14 +354,16 @@ export class BatchScanner {
                 trxBalanceUsd: "0",
                 tokensCount: 0,
                 totalBalanceUsd: "0",
+                isActive: true,
+                userId: progress.userId || null,
               });
               console.log(`✅ Saved new active wallet: ${address} (${transactions.length} transactions)`);
-            } catch (error) {
+            } catch (error: any) {
               if (error.code === '23505') {
                 // Duplicate address - wallet already exists, this is OK
                 console.log(`✅ Found active wallet (already in DB): ${address} (${transactions.length} transactions)`);
               } else {
-                console.error(`❌ Error saving wallet ${address}:`, error.message);
+                console.error(`❌ Error saving wallet ${address}:`, error?.message || error);
                 throw error; // Re-throw non-duplicate errors
               }
             }
@@ -495,18 +500,16 @@ export class BatchScanner {
               trxBalanceUsd: "0",
               tokensCount: 0, // 使用正确的字段名
               totalBalanceUsd: "0",
-              scannedAt: new Date(),
-              lastCheckedAt: new Date(),
               isActive: true,
-              userId: session.userId, // Associate with the user who started the scan
+              userId: progress.userId || null, // Associate with the user who started the scan
             });
             console.log(`✅ Saved new active wallet: ${address} (${transactions.length} transactions)`);
-          } catch (error) {
+          } catch (error: any) {
             if (error.code === '23505') {
               // Duplicate address - wallet already exists, this is OK
               console.log(`✅ Found active wallet (already in DB): ${address} (${transactions.length} transactions)`);
             } else {
-              console.error(`❌ Error saving wallet ${address}:`, error.message);
+              console.error(`❌ Error saving wallet ${address}:`, error?.message || error);
               throw error; // Re-throw non-duplicate errors
             }
           }

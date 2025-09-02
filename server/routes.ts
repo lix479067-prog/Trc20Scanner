@@ -148,10 +148,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all scan sessions
-  app.get("/api/scan/sessions", async (req, res) => {
+  app.get("/api/scan/sessions", requireAuth, async (req: any, res) => {
     try {
-      const activeSessions = await storage.getActiveScanSessions();
-      res.json(activeSessions);
+      const userId = req.user.id;
+      const sessions = await storage.getAllScanSessions(userId);
+      res.json(sessions);
     } catch (error: any) {
       console.error("Error getting scan sessions:", error);
       res.status(500).json({

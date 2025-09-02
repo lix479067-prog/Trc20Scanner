@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Key, Search, Download, Wallet } from "lucide-react";
+import { Key, Search, Download, Wallet, History } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { LanguageToggle } from "@/components/language-toggle";
 import { SecurityNotice } from "@/components/security-notice";
@@ -9,12 +9,13 @@ import { LoadingState } from "@/components/loading-state";
 import { WalletInfo } from "@/components/wallet-info";
 import { BatchScanner } from "@/components/batch-scanner";
 import { SavedWallets } from "@/components/saved-wallets";
+import ScanHistoryPage from "@/pages/scan-history-page";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { WalletInfo as WalletInfoType } from "@shared/schema";
 
-type ViewMode = 'single' | 'batch' | 'saved';
+type ViewMode = 'single' | 'batch' | 'saved' | 'history';
 
 export default function Home() {
   const { t } = useLanguage();
@@ -129,6 +130,16 @@ export default function Home() {
                   <Wallet size={14} className="mr-1" />
                   {t("savedWallets") || "Saved"}
                 </Button>
+                <Button
+                  variant={viewMode === 'history' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('history')}
+                  className="text-sm"
+                  data-testid="button-history-mode"
+                >
+                  <History size={14} className="mr-1" />
+                  历史记录
+                </Button>
               </div>
               
               <LanguageToggle />
@@ -177,9 +188,12 @@ export default function Home() {
         ) : viewMode === 'batch' ? (
           // Batch Scanning Mode
           <BatchScanner />
-        ) : (
+        ) : viewMode === 'saved' ? (
           // Saved Wallets Mode
           <SavedWallets />
+        ) : (
+          // Scan History Mode
+          <ScanHistoryPage onStartNewScan={() => setViewMode('batch')} />
         )}
       </main>
 
