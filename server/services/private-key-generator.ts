@@ -158,6 +158,45 @@ export class PrivateKeyGenerator {
   }
 
   /**
+   * Generate ALL possible private keys for a template (for maximum reliability)
+   * Use with caution - can return very large arrays for templates with many wildcards
+   */
+  generateAll(template: string, maxVariations?: number): string[] {
+    const wildcardPositions = this.findWildcardPositions(template);
+    
+    if (wildcardPositions.length === 0) {
+      return [template.toLowerCase()];
+    }
+
+    const baseTemplate = template.toLowerCase();
+    const allKeys: string[] = [];
+    
+    // Calculate total possible combinations
+    const totalCombinations = Math.pow(16, wildcardPositions.length);
+    const actualMax = Math.min(maxVariations || totalCombinations, totalCombinations);
+    
+    console.log(`Generating all ${actualMax.toLocaleString()} combinations for template: ${template}`);
+    
+    // Generate all combinations systematically
+    for (let i = 0; i < actualMax; i++) {
+      let privateKey = baseTemplate;
+      let combination = i;
+      
+      // For each wildcard position, determine the hex digit
+      for (let j = wildcardPositions.length - 1; j >= 0; j--) {
+        const hexDigit = (combination % 16).toString(16);
+        combination = Math.floor(combination / 16);
+        privateKey = privateKey.replace('?', hexDigit);
+      }
+      
+      allKeys.push(privateKey);
+    }
+    
+    console.log(`Generated ${allKeys.length.toLocaleString()} private keys`);
+    return allKeys;
+  }
+
+  /**
    * Calculate total possible combinations for a template
    */
   calculateTotalCombinations(template: string): number {

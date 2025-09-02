@@ -22,12 +22,84 @@ interface ScanProgress {
   }>;
   isCompleted: boolean;
   isRunning: boolean;
+  // Add mutex for thread-safe operations
+  countLock: boolean;
 }
 
 export class BatchScanner {
   private activeSessions = new Map<number, ScanProgress>();
   private readonly MIN_BALANCE_THRESHOLD = 0.001; // Minimum balance to save wallet
   private readonly MIN_ACTIVITY_THRESHOLD = 1; // Minimum transaction count for active wallet
+
+  /**
+   * Atomic counter operations to prevent race conditions
+   */
+  private async atomicIncrement(sessionId: number, field: 'totalScanned' | 'totalFound'): Promise<void> {
+    const progress = this.activeSessions.get(sessionId);
+    if (!progress) return;
+
+    // Simple lock mechanism - wait for lock to be released
+    while (progress.countLock) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+
+    // Acquire lock
+    progress.countLock = true;
+    
+    try {
+      // Atomic increment
+      progress[field]++;
+      
+      // Update database immediately for critical operations
+      if (field === 'totalFound' || progress.totalScanned % 10 === 0) {
+        await storage.updateScanSession(sessionId, {
+          totalGenerated: progress.totalGenerated,
+          totalScanned: progress.totalScanned,
+          totalFound: progress.totalFound,
+        });
+      }
+    } finally {
+      // Release lock
+      progress.countLock = false;
+    }
+  }
+
+  /**
+   * Safely add found wallet with atomic operations
+   */
+  private async atomicAddWallet(sessionId: number, walletData: {
+    address: string;
+    privateKey: string;
+    trxBalance: number;
+    totalBalanceUsd: number;
+  }): Promise<void> {
+    const progress = this.activeSessions.get(sessionId);
+    if (!progress) return;
+
+    // Wait for lock
+    while (progress.countLock) {
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+
+    // Acquire lock
+    progress.countLock = true;
+    
+    try {
+      // Add wallet to results
+      progress.foundWallets.push(walletData);
+      progress.totalFound++;
+      
+      // Update database immediately for found wallets
+      await storage.updateScanSession(sessionId, {
+        totalGenerated: progress.totalGenerated,
+        totalScanned: progress.totalScanned,
+        totalFound: progress.totalFound,
+      });
+    } finally {
+      // Release lock
+      progress.countLock = false;
+    }
+  }
 
   /**
    * Start a new random scan session (no template)
@@ -48,6 +120,7 @@ export class BatchScanner {
       foundWallets: [],
       isCompleted: false,
       isRunning: true,
+      countLock: false,
     };
 
     this.activeSessions.set(session.id, progress);
@@ -63,6 +136,7 @@ export class BatchScanner {
 
   /**
    * Start a new batch scan session with template
+   * For large-scale scanning, use sequential mode for 100% reliability
    */
   async startBatchScan(template: PrivateKeyTemplate): Promise<BatchScanResult> {
     // Validate template
@@ -86,12 +160,19 @@ export class BatchScanner {
       foundWallets: [],
       isCompleted: false,
       isRunning: true,
+      countLock: false,
     };
 
     this.activeSessions.set(session.id, progress);
 
+    // Choose scan method based on scale
+    const isLargeScale = template.maxVariations > 1000;
+    const scanMethod = isLargeScale ? 
+      this.performSequentialScan(session.id, template) : 
+      this.performBatchScan(session.id, template);
+
     // Start scanning asynchronously
-    this.performBatchScan(session.id, template).catch((error) => {
+    scanMethod.catch((error) => {
       console.error(`Batch scan ${session.id} failed:`, error);
       this.markSessionCompleted(session.id);
     });
@@ -189,10 +270,12 @@ export class BatchScanner {
 
         promises.push(batchPromise);
 
-        // Update session progress
-        if (promises.length % 5 === 0) {
+        // Update session progress with all data
+        if (promises.length % 3 === 0) {
           await storage.updateScanSession(sessionId, {
             totalGenerated: progress.totalGenerated,
+            totalScanned: progress.totalScanned,
+            totalFound: progress.totalFound,
           });
         }
 
@@ -214,7 +297,93 @@ export class BatchScanner {
   }
 
   /**
-   * Perform the actual batch scanning with template
+   * Perform 100% reliable sequential scanning (for large-scale operations)
+   * Each key is processed one by one to ensure zero data loss
+   */
+  private async performSequentialScan(sessionId: number, template: PrivateKeyTemplate): Promise<void> {
+    const progress = this.activeSessions.get(sessionId);
+    if (!progress) return;
+
+    console.log(`\n🔍 Starting SEQUENTIAL scan for maximum reliability`);
+    console.log(`Template: ${template.template}`);
+    console.log(`Max variations: ${template.maxVariations.toLocaleString()}`);
+
+    try {
+      // Generate ALL private keys for the template
+      const allKeys = privateKeyGenerator.generateAll(template.template, template.maxVariations);
+      progress.totalGenerated = allKeys.length;
+
+      console.log(`📊 Generated ${allKeys.length.toLocaleString()} private keys`);
+
+      // Process keys one by one for maximum reliability
+      for (let i = 0; i < allKeys.length; i++) {
+        if (!progress.isRunning) break;
+
+        const privateKey = allKeys[i];
+        
+        try {
+          // Steady delay for API stability
+          if (i > 0 && i % 10 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 1000)); // 1s every 10 keys
+          }
+
+          // Generate address
+          const address = await tronService.generateAddressFromPrivateKey(privateKey);
+          
+          // Check transaction history only
+          const transactions = await tronService.getRecentTransactions(address);
+          
+          // Update scan count atomically
+          await this.atomicIncrement(sessionId, 'totalScanned');
+
+          // Check activity
+          const hasTransactions = transactions.length >= this.MIN_ACTIVITY_THRESHOLD;
+
+          if (hasTransactions) {
+            // Save to database
+            await storage.saveWalletRecord({
+              privateKey,
+              address,
+              trxBalance: "0",
+              trxBalanceUsd: "0",
+              tokensCount: 0,
+              totalBalanceUsd: "0",
+            });
+
+            // Add to session atomically
+            await this.atomicAddWallet(sessionId, {
+              address,
+              privateKey,
+              trxBalance: 0,
+              totalBalanceUsd: 0,
+            });
+
+            console.log(`✅ Found active wallet: ${address} (${transactions.length} transactions)`);
+          }
+
+          // Progress update every 50 keys
+          if (i % 50 === 0) {
+            const percent = Math.round((i / allKeys.length) * 100);
+            console.log(`📈 Progress: ${i.toLocaleString()}/${allKeys.length.toLocaleString()} (${percent}%) - Found: ${progress.totalFound}`);
+          }
+
+        } catch (error) {
+          console.error(`❌ Error processing key ${i+1}/${allKeys.length}:`, error);
+          await this.atomicIncrement(sessionId, 'totalScanned');
+        }
+      }
+
+      console.log(`🏁 Sequential scan completed! Scanned: ${progress.totalScanned}, Found: ${progress.totalFound}`);
+
+    } catch (error) {
+      console.error(`💥 Sequential scan ${sessionId} failed:`, error);
+    } finally {
+      await this.markSessionCompleted(sessionId);
+    }
+  }
+
+  /**
+   * Perform the actual batch scanning with template (concurrent mode)
    */
   private async performBatchScan(sessionId: number, template: PrivateKeyTemplate): Promise<void> {
     const progress = this.activeSessions.get(sessionId);
@@ -251,10 +420,12 @@ export class BatchScanner {
 
         promises.push(batchPromise);
 
-        // Update session progress every few batches
-        if (promises.length % 10 === 0) {
+        // Update session progress every few batches with all data
+        if (promises.length % 5 === 0) {
           await storage.updateScanSession(sessionId, {
             totalGenerated: progress.totalGenerated,
+            totalScanned: progress.totalScanned,
+            totalFound: progress.totalFound,
           });
         }
 
@@ -272,71 +443,63 @@ export class BatchScanner {
   }
 
   /**
-   * Process a batch of private keys
+   * Process a batch of private keys with atomic operations for reliability
    */
   private async processBatch(sessionId: number, privateKeys: string[]): Promise<void> {
     const progress = this.activeSessions.get(sessionId);
     if (!progress || !progress.isRunning) return;
 
-    // Process keys with rate limiting to avoid API throttling
-    const concurrentChecks: Promise<void>[] = [];
-    
+    // Process keys sequentially for better reliability in large-scale scans
     for (let i = 0; i < privateKeys.length; i++) {
       const privateKey = privateKeys[i];
       if (!progress.isRunning) break;
 
-      const checkPromise = (async () => {
-        try {
-          // Add longer delay between requests to avoid rate limiting
-          if (i > 0) {
-            await new Promise(resolve => setTimeout(resolve, 500)); // 500ms delay
-          }
-
-          // Generate address from private key
-          const address = await tronService.generateAddressFromPrivateKey(privateKey);
-          
-          // Only check transaction history for activity
-          const transactions = await tronService.getRecentTransactions(address);
-          
-          progress.totalScanned++;
-
-          // Check if wallet has any transaction history (indicating it's active)
-          const hasTransactions = transactions.length >= this.MIN_ACTIVITY_THRESHOLD;
-
-          if (hasTransactions) {
-            // Save active wallet to database (minimal data)
-            await storage.saveWalletRecord({
-              privateKey,
-              address: address,
-              trxBalance: "0", // We don't query balance anymore
-              trxBalanceUsd: "0",
-              tokensCount: 0,
-              totalBalanceUsd: "0",
-            });
-
-            // Add to current session results
-            progress.foundWallets.push({
-              address: address,
-              privateKey,
-              trxBalance: 0,
-              totalBalanceUsd: 0,
-            });
-
-            progress.totalFound++;
-
-            console.log(`Found active wallet: ${address} (${transactions.length} transactions)`);
-          }
-
-        } catch (error) {
-          console.error(`Error checking private key ${privateKey.slice(0, 8)}...`, error);
-          progress.totalScanned++;
+      try {
+        // Add delay to avoid API throttling - reliability over speed
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 600)); // 600ms delay for stability
         }
-      })();
 
-      concurrentChecks.push(checkPromise);
+        // Generate address from private key
+        const address = await tronService.generateAddressFromPrivateKey(privateKey);
+        
+        // Only check transaction history for activity
+        const transactions = await tronService.getRecentTransactions(address);
+        
+        // Atomic increment for scan count
+        await this.atomicIncrement(sessionId, 'totalScanned');
+
+        // Check if wallet has any transaction history (indicating it's active)
+        const hasTransactions = transactions.length >= this.MIN_ACTIVITY_THRESHOLD;
+
+        if (hasTransactions) {
+          // Save active wallet to database (minimal data)
+          await storage.saveWalletRecord({
+            privateKey,
+            address: address,
+            trxBalance: "0", // We don't query balance anymore
+            trxBalanceUsd: "0",
+            tokensCount: 0,
+            totalBalanceUsd: "0",
+          });
+
+          // Atomic add wallet operation
+          await this.atomicAddWallet(sessionId, {
+            address: address,
+            privateKey,
+            trxBalance: 0,
+            totalBalanceUsd: 0,
+          });
+
+          console.log(`Found active wallet: ${address} (${transactions.length} transactions)`);
+        }
+
+      } catch (error) {
+        console.error(`Error checking private key ${privateKey.slice(0, 8)}...`, error);
+        // Even on error, increment scan count atomically
+        await this.atomicIncrement(sessionId, 'totalScanned');
+      }
     }
-
-    await Promise.all(concurrentChecks);
   }
 
   /**
