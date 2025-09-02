@@ -1,10 +1,36 @@
 import { z } from "zod";
-import { pgTable, text, integer, decimal, timestamp, serial, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, integer, decimal, timestamp, serial, boolean, varchar, index, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
+import { sql } from "drizzle-orm";
+
+// Session storage table.
+// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)],
+);
+
+// User storage table.
+// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email").unique(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
 
 // Database Tables
 export const walletRecords = pgTable("wallet_records", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id), // Link to user
   privateKey: text("private_key").notNull(),
   address: text("address").notNull().unique(),
   trxBalance: decimal("trx_balance", { precision: 20, scale: 6 }).notNull(),
@@ -18,6 +44,7 @@ export const walletRecords = pgTable("wallet_records", {
 
 export const scanSessions = pgTable("scan_sessions", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id), // Link to user
   template: text("template").notNull(),
   totalGenerated: integer("total_generated").notNull().default(0),
   totalFound: integer("total_found").notNull().default(0),
@@ -105,6 +132,10 @@ export const insertScanSessionSchema = createInsertSchema(scanSessions).omit({
   startedAt: true,
   completedAt: true,
 });
+
+// User Types for Replit Auth
+export type UpsertUser = typeof users.$inferInsert;
+export type User = typeof users.$inferSelect;
 
 // Types
 export type PrivateKeyInput = z.infer<typeof privateKeySchema>;

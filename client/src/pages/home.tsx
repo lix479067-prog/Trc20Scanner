@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Key, Search, Download } from "lucide-react";
+import { Key, Search, Download, Wallet } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
 import { LanguageToggle } from "@/components/language-toggle";
 import { SecurityNotice } from "@/components/security-notice";
@@ -8,12 +8,13 @@ import { PrivateKeyInput } from "@/components/private-key-input";
 import { LoadingState } from "@/components/loading-state";
 import { WalletInfo } from "@/components/wallet-info";
 import { BatchScanner } from "@/components/batch-scanner";
+import { SavedWallets } from "@/components/saved-wallets";
 import { Button } from "@/components/ui/button";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { WalletInfo as WalletInfoType } from "@shared/schema";
 
-type ViewMode = 'single' | 'batch';
+type ViewMode = 'single' | 'batch' | 'saved';
 
 export default function Home() {
   const { t } = useLanguage();
@@ -118,9 +119,28 @@ export default function Home() {
                   <Search size={14} className="mr-1" />
                   {t("batchScan")}
                 </Button>
+                <Button
+                  variant={viewMode === 'saved' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('saved')}
+                  className="text-sm"
+                  data-testid="button-saved-mode"
+                >
+                  <Wallet size={14} className="mr-1" />
+                  {t("savedWallets") || "Saved"}
+                </Button>
               </div>
               
               <LanguageToggle />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => window.location.href = "/api/logout"}
+                className="text-sm"
+                data-testid="logout-button"
+              >
+                Logout
+              </Button>
               <div className="status-indicator text-sm text-success font-medium" data-testid="network-status">
                 {t("networkConnected")}
               </div>
@@ -151,9 +171,12 @@ export default function Home() {
               />
             )}
           </>
-        ) : (
+        ) : viewMode === 'batch' ? (
           // Batch Scanning Mode
           <BatchScanner />
+        ) : (
+          // Saved Wallets Mode
+          <SavedWallets />
         )}
       </main>
 

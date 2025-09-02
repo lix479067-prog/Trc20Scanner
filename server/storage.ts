@@ -1,31 +1,37 @@
 import { db } from "./db";
-import { walletRecords, scanSessions } from "@shared/schema";
+import { walletRecords, scanSessions, users } from "@shared/schema";
 import { eq, desc, and, gte } from "drizzle-orm";
 import type { 
   WalletRecord, 
   InsertWalletRecord, 
   ScanSession, 
-  InsertScanSession 
+  InsertScanSession,
+  User,
+  UpsertUser
 } from "@shared/schema";
 
 export interface IStorage {
+  // User operations (REQUIRED for Replit Auth)
+  getUser(id: string): Promise<User | undefined>;
+  upsertUser(user: UpsertUser): Promise<User>;
+  
   // Wallet Records
   saveWalletRecord(record: InsertWalletRecord): Promise<WalletRecord>;
   getWalletRecord(address: string): Promise<WalletRecord | undefined>;
   getWalletRecordsBySession(sessionId: number): Promise<WalletRecord[]>;
-  getAllWalletRecords(limit?: number, offset?: number): Promise<WalletRecord[]>;
+  getAllWalletRecords(limit?: number, offset?: number, userId?: string): Promise<WalletRecord[]>;
   updateWalletRecord(address: string, updates: Partial<InsertWalletRecord>): Promise<WalletRecord | undefined>;
   deleteWalletRecord(address: string): Promise<boolean>;
   
   // Scan Sessions
   createScanSession(session: InsertScanSession): Promise<ScanSession>;
   getScanSession(id: number): Promise<ScanSession | undefined>;
-  getActiveScanSessions(): Promise<ScanSession[]>;
+  getActiveScanSessions(userId?: string): Promise<ScanSession[]>;
   updateScanSession(id: number, updates: Partial<ScanSession>): Promise<ScanSession | undefined>;
   completeScanSession(id: number, totalFound: number): Promise<ScanSession | undefined>;
   
   // Statistics
-  getWalletStatistics(): Promise<{
+  getWalletStatistics(userId?: string): Promise<{
     totalWallets: number;
     totalBalance: number;
     totalSessions: number;
@@ -34,6 +40,27 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  // User operations (REQUIRED for Replit Auth)
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
   // Wallet Records
   async saveWalletRecord(record: InsertWalletRecord): Promise<WalletRecord> {
     const [wallet] = await db.insert(walletRecords).values(record).returning();
@@ -62,11 +89,18 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(walletRecords.scannedAt));
   }
 
-  async getAllWalletRecords(limit: number = 50, offset: number = 0): Promise<WalletRecord[]> {
-    return await db
+  async getAllWalletRecords(limit: number = 50, offset: number = 0, userId?: string): Promise<WalletRecord[]> {
+    let query = db
       .select()
       .from(walletRecords)
-      .where(eq(walletRecords.isActive, true))
+      .where(eq(walletRecords.isActive, true));
+    
+    // Filter by user if provided
+    if (userId) {
+      query = query.where(and(eq(walletRecords.isActive, true), eq(walletRecords.userId, userId)));
+    }
+    
+    return await query
       .orderBy(desc(walletRecords.scannedAt))
       .limit(limit)
       .offset(offset);
@@ -104,12 +138,18 @@ export class DatabaseStorage implements IStorage {
     return session;
   }
 
-  async getActiveScanSessions(): Promise<ScanSession[]> {
-    return await db
+  async getActiveScanSessions(userId?: string): Promise<ScanSession[]> {
+    let query = db
       .select()
       .from(scanSessions)
-      .where(eq(scanSessions.isActive, true))
-      .orderBy(desc(scanSessions.startedAt));
+      .where(eq(scanSessions.isActive, true));
+    
+    // Filter by user if provided
+    if (userId) {
+      query = query.where(and(eq(scanSessions.isActive, true), eq(scanSessions.userId, userId)));
+    }
+    
+    return await query.orderBy(desc(scanSessions.startedAt));
   }
 
   async updateScanSession(id: number, updates: Partial<ScanSession>): Promise<ScanSession | undefined> {
@@ -135,34 +175,34 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Statistics
-  async getWalletStatistics(): Promise<{
+  async getWalletStatistics(userId?: string): Promise<{
     totalWallets: number;
     totalBalance: number;
     totalSessions: number;
     activeSessions: number;
   }> {
-    // Get total active wallets
-    const totalWalletsResult = await db
-      .select()
-      .from(walletRecords)
-      .where(eq(walletRecords.isActive, true));
+    // Build base queries with optional user filtering
+    let walletQuery = db.select().from(walletRecords).where(eq(walletRecords.isActive, true));
+    let sessionQuery = db.select().from(scanSessions);
+    let activeSessionQuery = db.select().from(scanSessions).where(eq(scanSessions.isActive, true));
+    let balanceQuery = db.select({ totalBalanceUsd: walletRecords.totalBalanceUsd })
+      .from(walletRecords).where(eq(walletRecords.isActive, true));
 
-    // Get total sessions
-    const totalSessionsResult = await db
-      .select()
-      .from(scanSessions);
+    // Apply user filter if provided
+    if (userId) {
+      walletQuery = walletQuery.where(and(eq(walletRecords.isActive, true), eq(walletRecords.userId, userId)));
+      sessionQuery = sessionQuery.where(eq(scanSessions.userId, userId));
+      activeSessionQuery = activeSessionQuery.where(and(eq(scanSessions.isActive, true), eq(scanSessions.userId, userId)));
+      balanceQuery = balanceQuery.where(and(eq(walletRecords.isActive, true), eq(walletRecords.userId, userId)));
+    }
 
-    // Get active sessions
-    const activeSessionsResult = await db
-      .select()
-      .from(scanSessions)
-      .where(eq(scanSessions.isActive, true));
-
-    // For total balance, we'd need to aggregate, but for simplicity, we'll estimate
-    const allWallets = await db
-      .select({ totalBalanceUsd: walletRecords.totalBalanceUsd })
-      .from(walletRecords)
-      .where(eq(walletRecords.isActive, true));
+    // Execute queries
+    const [totalWalletsResult, totalSessionsResult, activeSessionsResult, allWallets] = await Promise.all([
+      walletQuery,
+      sessionQuery,
+      activeSessionQuery,
+      balanceQuery
+    ]);
 
     const totalBalance = allWallets.reduce((sum, wallet) => {
       return sum + parseFloat(wallet.totalBalanceUsd);

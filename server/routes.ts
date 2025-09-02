@@ -4,10 +4,25 @@ import { storage } from "./storage";
 import { tronService } from "./services/tron";
 import { batchScanner } from "./services/batch-scanner";
 import { privateKeyGenerator } from "./services/private-key-generator";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 import { privateKeySchema, privateKeyTemplateSchema, randomScanSchema } from "@shared/schema";
 import type { WalletInfo } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Setup authentication middleware
+  await setupAuth(app);
+
+  // Auth routes
+  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
   // Import wallet from private key
   app.post("/api/wallet/import", async (req, res) => {
     try {
@@ -143,13 +158,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get discovered wallets
-  app.get("/api/wallets", async (req, res) => {
+  // Get discovered wallets (user-specific when authenticated)
+  app.get("/api/wallets", async (req: any, res) => {
     try {
       const limit = parseInt(req.query.limit as string) || 50;
       const offset = parseInt(req.query.offset as string) || 0;
       
-      const wallets = await storage.getAllWalletRecords(limit, offset);
+      // Get user ID if authenticated (optional)
+      let userId: string | undefined;
+      if (req.isAuthenticated && req.isAuthenticated() && req.user?.claims?.sub) {
+        userId = req.user.claims.sub;
+      }
+      
+      const wallets = await storage.getAllWalletRecords(limit, offset, userId);
       res.json(wallets);
     } catch (error: any) {
       console.error("Error getting wallets:", error);
@@ -159,10 +180,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get statistics
-  app.get("/api/stats", async (req, res) => {
+  // Get statistics (user-specific when authenticated)
+  app.get("/api/stats", async (req: any, res) => {
     try {
-      const stats = await storage.getWalletStatistics();
+      // Get user ID if authenticated (optional)
+      let userId: string | undefined;
+      if (req.isAuthenticated && req.isAuthenticated() && req.user?.claims?.sub) {
+        userId = req.user.claims.sub;
+      }
+      
+      const stats = await storage.getWalletStatistics(userId);
       res.json(stats);
     } catch (error: any) {
       console.error("Error getting statistics:", error);
