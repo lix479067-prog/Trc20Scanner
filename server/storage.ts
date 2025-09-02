@@ -173,14 +173,21 @@ export class DatabaseStorage implements IStorage {
     return session;
   }
 
-  async completeScanSession(id: number, totalFound: number): Promise<ScanSession | undefined> {
+  async completeScanSession(id: number, totalFound: number, totalScanned?: number): Promise<ScanSession | undefined> {
+    const updates: any = {
+      totalFound,
+      isActive: false,
+      status: 'completed',
+      completedAt: new Date(),
+    };
+    
+    if (totalScanned !== undefined) {
+      updates.totalScanned = totalScanned;
+    }
+    
     const [session] = await db
       .update(scanSessions)
-      .set({
-        totalFound,
-        isActive: false,
-        completedAt: new Date(),
-      })
+      .set(updates)
       .where(eq(scanSessions.id, id))
       .returning();
     return session;

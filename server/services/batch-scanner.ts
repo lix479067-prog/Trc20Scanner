@@ -57,6 +57,7 @@ export class BatchScanner {
           totalGenerated: progress.totalGenerated,
           totalScanned: progress.totalScanned,
           totalFound: progress.totalFound,
+          lastProgressAt: new Date(),
         });
       }
     } finally {
@@ -556,7 +557,7 @@ export class BatchScanner {
       progress.isCompleted = true;
       progress.isRunning = false;
 
-      await storage.completeScanSession(sessionId, progress.totalFound);
+      await storage.completeScanSession(sessionId, progress.totalFound, progress.totalScanned);
       
       // Keep session in memory for a short time for final queries
       setTimeout(() => {
